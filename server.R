@@ -1,5 +1,5 @@
-#source("/home/metsalu/ShinyApps/upload_webtool/global.R")
-source("/home/metsalu/ShinyApps/upload_webtool_test/global.R")
+source("/home/metsalu/ShinyApps/upload_webtool/global.R")
+#source("/home/metsalu/ShinyApps/upload_webtool_test/global.R")
 
 shinyServer(function(input, output, session) {
 	readData = reactive({

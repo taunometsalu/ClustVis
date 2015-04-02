@@ -1,5 +1,5 @@
-#path = "/home/metsalu/ShinyApps/upload_webtool/"
-path = "/home/metsalu/ShinyApps/upload_webtool_test/"
+path = "/home/metsalu/ShinyApps/upload_webtool/"
+#path = "/home/metsalu/ShinyApps/upload_webtool_test/"
 
 lib = "/home/metsalu/ShinyApps/pca_431095613456015691/R/"
 .libPaths(lib)

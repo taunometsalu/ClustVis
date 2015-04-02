@@ -1,5 +1,5 @@
-#source("/home/metsalu/ShinyApps/upload_webtool/global.R")
-source("/home/metsalu/ShinyApps/upload_webtool_test/global.R")
+source("/home/metsalu/ShinyApps/upload_webtool/global.R")
+#source("/home/metsalu/ShinyApps/upload_webtool_test/global.R")
 h = 800
 pcaPlot = plotOutput("pca", height = "100%", width = "100%")
 
@@ -315,7 +315,9 @@ shinyUI(fluidPage(
 					"Several ", a("R", href = "http://www.r-project.org/", target = "_blank"), " packages are used internally, including ", 
 					"shiny, ggplot2, pheatmap, RColorBrewer, FactoMineR, pcaMethods, shinyBS and others. It is developed in ", 
 					a("BIIT", href = "http://biit.cs.ut.ee/", target = "_blank"), 
-					"Research Group. Please send bug reports and feature requests to tauno.metsalu [at] ut.ee."),
+					"Research Group. The source code of ClustVis is available in ",
+					HTML("<a href='https://github.com/taunometsalu/ClustVis' target='_blank'>GitHub</a>."),
+          "Please submit bug reports and feature requests to GitHub issues page or send to tauno.metsalu [at] ut.ee."),
 					br(),
 					img(src = "frontPage/frontPage.png"),
           #http://stackoverflow.com/questions/26058909/r-shiny-avoid-scrollbars-when-using-googlevis-charts-in-tabpanels
@@ -436,7 +438,7 @@ shinyUI(fluidPage(
 					p("19th December 2014 - output interpretation added to the help page; better default size for row and column names on the heatmap."),
 					p("6th February 2015 - heatmap tree ordering options added; it is possible to choose different linkage method for rows and columns of heatmap; you can choose color range of the heatmap manually; heatmap annotation titles can be switched off; organism filtering added when importing public datasets; some bug fixes."),
 					p("9th February 2015 - some optimization and help text added when importing dataset from ArrayExpress."),
-					p("31st March 2015 - major revision based on comments from reviewers: some example datasets removed; it is possible to cluster whole gene expression dataset first using k-means or select one k-means cluster; some warning messages added; Bayesian PCA removed; PCA and heatmap options grouped; percentages shown together with axis labels; color and shape can be changed independently on PCA plot; help page improved a lot; example captions added for PCA plot and heatmap; new export options added; heatmap default color changed.")
+					p("1st April 2015 - major revision based on comments from reviewers: some example datasets removed; it is possible to cluster whole gene expression dataset first using k-means or select one k-means cluster; some warning messages added; Bayesian PCA removed; PCA and heatmap options grouped; percentages shown together with axis labels; color and shape can be changed independently on PCA plot; help page improved a lot; example captions added for PCA plot and heatmap; new export options added; heatmap default color changed.")
 				),
 				id = "tabs1"
 			)
