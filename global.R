@@ -220,6 +220,62 @@ updateNbrs = function(session, mat){
   updateSliderInput(session, "hmFontSizeColnames", value = colNbrSize)
 }
 
+filterRows = function(session, anno, mat, input, organism){
+  #row filtering
+  if(input$uploadRowFiltering == 1 & input$uploadPbPathway != ""){
+    pwDb = strsplit(input$uploadPbPathway, ":")[[1]][1]
+    pwFile = str_c(pwPath, "gprofOntos_", gprofDate, "_", organism, "_", pwDb, ".RData")
+    load(pwFile)
+    rlist2 = rlist[rlist$term == input$uploadPbPathway, ]
+    glist = rlist2$gene
+  } else if(input$uploadRowFiltering %in% 2:3 & input$uploadNbrClusters >= 2 & input$uploadNbrClusters <= 600){
+    set.seed(52710953)
+    km = kmeans(mat, centers = input$uploadNbrClusters)
+    if(input$uploadRowFiltering == 2){
+      mat = km$centers
+      rownames(mat) = str_c("Cluster ", 1:nrow(mat), " (", km$size, " genes)")
+      updatePcsAnnos(session, anno, mat, input)
+    } else if(input$uploadRowFiltering == 3){
+      mat = mat[km$cluster == input$uploadClusterId, , drop = FALSE]
+      glist = rownames(mat)
+    }
+  } else {
+    mat = NULL
+  }
+  if((input$uploadRowFiltering == 1 & input$uploadPbPathway != "") | 
+       (input$uploadRowFiltering == 3 & input$uploadNbrClusters >= 2 & input$uploadNbrClusters <= 600)){
+    if(input$uploadDataInput == 5){
+      platf = strsplit(input$uploadPbDataset, "/")[[1]][1]
+      targetPlatform = uploadPlatformTable$name[uploadPlatformTable$id == platf]
+      library(gProfileR)
+      library(plyr)
+      safegconvert = failwith(data.frame(), gconvert, TRUE)
+      gcon = safegconvert(glist, organism = organism, target = targetPlatform)
+      if(nrow(gcon) > 0){
+        library(Hmisc)
+        if(all.is.numeric(rownames(mat))){
+          rownames(mat) = str_c(targetPlatform, ":", rownames(mat))
+        }
+        m = match(toupper(rownames(mat)), toupper(gcon$target)) #different in newer gProfileR version
+        w = which(!is.na(m))
+        if(length(w) > 0){
+          mat = mat[w, , drop = FALSE]
+          rownames(mat) = str_c(gcon[m[w], "name"], " (", rownames(mat), ")")
+          updatePcsAnnos(session, anno, mat, input)
+        } else {
+          mat = NULL
+        }
+      } else {
+        mat = NULL
+      }
+    } else {
+      mat = mat[rownames(mat) %in% glist, , drop = FALSE]
+      updatePcsAnnos(session, anno, mat, input) #to change if "annotations to keep" is changed or size of row and column names if you change pathway
+    }
+  }
+  mat
+}
+
 plotPCA = function(data){
 	if(is.null(data)) return(list(NULL, 0, 0))
 	attach(data)

@@ -438,7 +438,8 @@ shinyUI(fluidPage(
 					p("19th December 2014 - output interpretation added to the help page; better default size for row and column names on the heatmap."),
 					p("6th February 2015 - heatmap tree ordering options added; it is possible to choose different linkage method for rows and columns of heatmap; you can choose color range of the heatmap manually; heatmap annotation titles can be switched off; organism filtering added when importing public datasets; some bug fixes."),
 					p("9th February 2015 - some optimization and help text added when importing dataset from ArrayExpress."),
-					p("1st April 2015 - major revision based on comments from reviewers: some example datasets removed; it is possible to cluster whole gene expression dataset first using k-means or select one k-means cluster; some warning messages added; Bayesian PCA removed; PCA and heatmap options grouped; percentages shown together with axis labels; color and shape can be changed independently on PCA plot; help page improved a lot; example captions added for PCA plot and heatmap; new export options added; heatmap default color changed.")
+					p("1st April 2015 - major revision based on comments from reviewers: some example datasets removed; it is possible to cluster whole gene expression dataset first using k-means or select one k-means cluster; some warning messages added; Bayesian PCA removed; PCA and heatmap options grouped; percentages shown together with axis labels; color and shape can be changed independently on PCA plot; help page improved a lot; example captions added for PCA plot and heatmap; new export options added; heatmap default color changed."),
+					p("6th April 2015 - small improvements related with option 'import prepared gene expression matrix'.")
 				),
 				id = "tabs1"
 			)
