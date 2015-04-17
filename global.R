@@ -50,11 +50,13 @@ tooltipPlace = "right"
 useSelectize = FALSE #https://github.com/ebailey78/shinyBS/issues/7
 shapeList = c("letters", "various")
 maxCharactersAnnotations = 20 #how many characters to show for long annotations - to cut too long names
-maxDimensionHeatmap = 600 #how large matrix we allow for heatmap (clustering a large matrix will be slow)
-pwPath = "/home/metsalu/predect/results/cache/clustvis/"
-load(file = "/home/metsalu/predect/results/cache/clustvis/clustvisInput_20150205.RData")
-gprofDate = "20150205" #gprofOntos file
-pwDate = "20150205" #clustvisInput file
+maxDimensionHeatmap = 600 #how large matrix we allow for heatmap (clustering and plotting a large matrix will be slow)
+gprofDate = "20150416" #"20150205" #gprofOntos file
+pwDate = "20150416" #"20150205" #clustvisInput file
+pwPath = str_c("/home/metsalu/predect/results/cache/clustvis/", pwDate, "/")
+load(file = str_c("/home/metsalu/predect/results/cache/clustvis/", pwDate, "/clustvisInput_", pwDate, ".RData"))
+load(file = str_c("/home/metsalu/predect/results/cache/clustvis/", pwDate, "/clustvisInput_", pwDate, "_helpTables.RData"))
+helpTablesOptions = list(lengthMenu = c(5, 10, 25, 50), pageLength = 5) #options for help page tables
 setwd(path)
 options(shiny.maxRequestSize = 2 * 1024 ^ 2) #http://stackoverflow.com/questions/18037737/how-to-change-maximum-upload-size-exceeded-restriction-in-shiny-and-save-user
 
@@ -151,6 +153,24 @@ collapseSimilarAnnoMat = function(anno, mat, fun = median){
 	list(anno = anno3, mat = res)
 }
 
+findNAs = function(mat, dim){
+  #dim - 1 for rows, 2 for columns
+  nas = apply(mat, dim, function(x) sum(is.na(x)))
+  names(nas) = dimnames(mat)[[dim]]
+  w = which(nas != 0)
+  if(length(w) > 0){
+    return(sort(nas[w], decreasing = TRUE))
+  } else {
+    return(NULL)
+  }
+}
+
+findSD0 = function(mat, dim){
+  #dim - 1 for rows, 2 for columns
+  sds = apply(mat, dim, function(x) sd(x, na.rm = TRUE))
+  dimnames(mat)[[dim]][which(sds == 0)]
+}
+
 dataProcess = function(data){
 	if(is.null(data)) return(NULL)
 	set.seed(124987234)
@@ -163,11 +183,8 @@ dataProcess = function(data){
 		anno = coll$anno
 		mat = coll$mat
 	}
-	
-	#missing values in PCA:
+  
 	library(pcaMethods)
-	nbrNA = apply(mat, 1, function(x) sum(is.na(x)))
-	mat = mat[which(nbrNA != ncol(mat)), , drop = FALSE]
 	prep = prep(t(mat), scale = inputSaved$procScaling, center = procCentering)
 	pca = pca(prep, method = inputSaved$procMethod, nPcs = min(dim(mat)))
 	matPca = scores(pca)
@@ -228,7 +245,7 @@ filterRows = function(session, anno, mat, input, organism){
     load(pwFile)
     rlist2 = rlist[rlist$term == input$uploadPbPathway, ]
     glist = rlist2$gene
-  } else if(input$uploadRowFiltering %in% 2:3 & input$uploadNbrClusters >= 2 & input$uploadNbrClusters <= 600){
+  } else if(input$uploadRowFiltering %in% 2:3 & input$uploadNbrClusters >= 2 & input$uploadNbrClusters <= maxDimensionHeatmap){
     set.seed(52710953)
     km = kmeans(mat, centers = input$uploadNbrClusters)
     if(input$uploadRowFiltering == 2){

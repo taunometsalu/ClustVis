@@ -41,7 +41,8 @@ shinyUI(fluidPage(
 				),
 				conditionalPanel(condition = "input.uploadDataInput == '5'",
 					h5("Choose dataset:"),
-					selectInput("uploadOrganism", "Organism:", choices = uploadOrganismList, selectize = useSelectize),
+					selectInput("uploadOrganism", "Array organism:", choices = uploadOrganismList, 
+                      selected = "Homo sapiens", selectize = useSelectize),
 					numericInput("uploadMinAnnoTracks", "Minimum number of annotations:", value = 1, min = 0),
 					#initially empty to allow faster loading:
 					selectizeInput("uploadPbDataset", "Dataset:", choices = NULL, selected = NULL,
@@ -228,7 +229,16 @@ shinyUI(fluidPage(
 				textInput("exportSaveDeleteSettingsId", "ID for settings:")
 			),
 			conditionalPanel(condition = "input.tabs1 == 'Help'",
-				h4("Help")
+				h4("Help"),
+				a("General", href = "#general"), br(),
+				a("Data upload", href = "#upload"), br(),
+				a("Public dataset from MEM", href = "#mem"), br(),
+				a("List of datasets available", href = "#datasets"), br(),
+				a("List of pathways available", href = "#pathways"), br(),
+				a("Data pre-processing", href = "#processing"), br(),
+				a("PCA and heatmap", href = "#pca_heatmap"), br(),
+				a("Interpreting the output", href = "#interpretation"), br(),
+				a("Mathematical basis", href = "#mathematics")
 			),
 			conditionalPanel(condition = "input.tabs1 == 'News'",
 				h4("News")
@@ -237,6 +247,7 @@ shinyUI(fluidPage(
 			bsTooltip("uploadDataInput", "Which input to use: example dataset, upload a file, copy-paste from file, import from MEM (collection of public datasets from ArrayExpress), use saved settings or use a custom pre-saved dataset.", tooltipPlace),
 			bsTooltip("uploadGuessSep", "Whether delimiter (separator between the columns) is detected automatically or provided by the user.", tooltipPlace),
 			bsTooltip("uploadGuessAnno", "Whether number of annotation rows is detected automatically or provided by the user. Annotations should be placed as the first rows in the file. See help tab for more information.", tooltipPlace),
+			bsTooltip("uploadOrganism", "Organism of the microarray platform.", tooltipPlace),
 			bsTooltip("uploadMinAnnoTracks", "You can filter out less informative datasets, e.g. those that have no annotations.", tooltipPlace),
 			bsTooltip("uploadMinAnnoLevels", "You can filter out less informative annotations, e.g. those that are constant.", tooltipPlace),
 			bsTooltip("uploadMaxAnnoLevels", "You can filter out less informative annotations, e.g. those that have different value for each sample.", tooltipPlace),
@@ -324,7 +335,8 @@ shinyUI(fluidPage(
 					style = "overflow:hidden;"
 				),
 				# Data upload tab
-				tabPanel("Data upload", 
+				tabPanel("Data upload",
+				  p(textOutput("uploadWarnings")),
 					conditionalPanel(condition = "input.uploadDataInput == '5'",
 						p("Number of annotation levels in the original data before filtering:"), 
 						tableOutput("uploadAnnoLevelsTable")
@@ -332,7 +344,11 @@ shinyUI(fluidPage(
 					uiOutput("uploadAnnoInfo"),
 					tableOutput("uploadAnnoTable"),
 					uiOutput("uploadDataInfo"),
-					tableOutput("uploadDataTable")
+					tableOutput("uploadDataTable"),
+					p("Number of NAs in rows before removing:"),
+					p(tableOutput("uploadNAsRows")),
+					p("Number of NAs in columns before removing:"),
+					p(tableOutput("uploadNAsCols"))
 				),
 				tabPanel("Data pre-processing",
 					uiOutput("procPcaVarInfo"),
@@ -347,8 +363,7 @@ shinyUI(fluidPage(
 					downloadButton("exportDownloadEpsPCA", "Download EPS-file"),
 					downloadButton("exportDownloadSvgPCA", "Download SVG-file"),
 					br(), br(),
-          h5("Caption example"),
-					textOutput("legendPCA"),
+					htmlOutput("legendPCA"),
 					pcaPlot
 				),
 				tabPanel("Heatmap",
@@ -356,9 +371,7 @@ shinyUI(fluidPage(
 					downloadButton("exportDownloadEpsHeatmap", "Download EPS-file"),
 					downloadButton("exportDownloadSvgHeatmap", "Download SVG-file"),
 					br(), br(),
-					h5("Caption example"),
-					textOutput("legendHeatmap"),
-					br(), br(),
+					htmlOutput("legendHeatmap"),
 					imageOutput("heatmap", height = "100%", width = "100%")
 				),
 				tabPanel("Export",
@@ -379,37 +392,49 @@ shinyUI(fluidPage(
 					downloadButton("exportDownloadPCAvartable", "Download PCA explained variance as CSV-file")
 				),
 				tabPanel("Help",
-					h5("General"),
+					h5("General", id = "general"),
 					p("You can move through the analysis steps by going to each of the tabs from left to right. All tabs work in a similar way: you can choose settings from the left panel, image or table on the right will automatically renew after that. Sometimes, it can take seconds to load. When moving from one tab to another, settings are saved automatically."),
-          p("The browser session automatically ends if the user is inactive for 30 minutes. To save uploaded data and selected settings, you can use a button on the 'Export' tab, a link is given to recover the settings later. This can also be used to send a link to a collaborator to show the same view. There is no planned expiration time for the links, users can delete the settings if they are concerned about the privacy. Though, when version of ClustVis changes, old saved settings may not be fully compatible with the new version if e.g. there are some new features. "),
-					h5("Data upload"),
+          p("The idle timeout (the time when browser session ends if user is inactive) is set to 30 minutes from server side but this can be overridden by browser configuration. To save uploaded data and selected settings, you can use a button on the 'Export' tab, a link is given to recover the settings later. This can also be used to send a link to a collaborator to show the same view. There is no planned expiration time for the links, users can delete the settings if they are concerned about the privacy. Though, when version of ClustVis changes, old saved settings may not be fully compatible with the new version if e.g. there are some new features. "),
+					h5("Data upload", id = "upload"),
 					p("We aimed for a simple input data format. Each column represents one object (e.g. sample), there are optional annotation rows on top followed by dimension rows with numeric data. Format of the input file is shown on the image below. Data sets without annotations can be uploaded as well (on the example image, without rows 2-4)."),
 					img(src = "helpTab/uploadTableArrows.png", width = "100%"),
 					p("In addition, it is possible to load settings that you have saved earlier (including data, drop-down settings etc.) or import data from",  
             a("MEM", href = "http://biit.cs.ut.ee/mem/", target = "_blank"), 
             " which has a collection of public datasets from ",
             HTML("<a href='http://www.ebi.ac.uk/arrayexpress/' target='_blank'>ArrayExpress</a>."), 
-            " In the latter case, you can choose one dataset at a time and select one pathway, cluster the genes first using k-means or choose one of the k-means clusters. You can search for dataset and pathway by typing one or more keywords to the search box and then select from drop-down list that appears. The keywords can be about body part, dataset ID or any other word that will appear in the experiment title. It is also possible to use one of the testing datasets to get an overview of the web tool."),
+            " The latter case is described more closely in the next section. It is also possible to use one of the testing datasets to get an overview of the web tool."),
           #URL() instead of HTML() adds unwanted space before dot
-          p("If it happens that some names are very long and make the plot small, you can manually increase the width of the plot. We decided not to truncate the names automatically because sometimes the start of the name is important, sometimes the end and it is hard to decide it automatically. "),
 					p("If your dataset is not uploaded correctly (no rows are shown), please check the following:"),
           HTML("<ul><li>Make sure file is chosen for upload or pasted to the text box.</li>
               <li>Make sure all rows have equal number of columns. In case of doubt, it is safer to open the data in a spreadsheet program and copy-paste from there rather than choosing a file for upload.</li>
               <li>Make sure there are no duplicate row or column names.</li>
-              <li>If automatic detection of the delimiter is not working correctly, try to set it manually.</li>
-              <li>If you import public dataset from ArrayExpress, make sure both dataset and pathways is chosen. In case of some rare platforms, it can happen that IDs don't convert correctly and no data is shown.</li></ul>"),
+              <li>If automatic detection of the delimiter is not working correctly, try to set it manually (uncheck the 'detect delimiter' checkbox).</li>
+              <li>If automatic detection of the annotation rows is not working correctly, try to set it manually (uncheck the 'detect annotation rows' checkbox).</li></ul>"),
 					p("For user-uploaded datasets, ClustVis automatically detects both delimiter and number of annotation rows from the data by default. To find delimiter, it counts for each possible delimiter (comma, tabulator, semicolon) how many times it appears on each row. We use the heuristic where minimum is taken over all rows and the delimiter with the greatest score is chosen as the right one."),
-					p("When finding number of annotation rows, two situations may occur. If numeric data contains integers only (i.e. there are no floating point numbers), the last row that contains any non-numeric values is considered as the last row of annotations. If data also includes floating point numbers, it can occur that the last row of annotations has integer-valued annotations (e.g. grade: 1, 2, 3) and will incorrectly classified as numeric data. To avoid this, a row is found where all values are numeric, there is at least one floating point number and all following rows contain numeric values only. The last row before this is considered as the last row of annotations."),
-          h5("Data pre-processing"),
-					p("On this tab, you can choose the method that is used for PCA. This method is also used for imputing missing values on heatmap and it also determines whether e.g. values are centered on heatmap or not."),
-					h5("PCA and heatmap"),
+					p("When finding number of annotation rows, two situations may occur. If numeric data contains integers only (i.e. there are no fractional numbers), the last row that contains any non-numeric values is considered the last row of annotations. If data also includes fractional numbers, it can occur that the last row of annotations has integer-valued annotations (e.g. grade coded with integers: 1, 2, 3) and will be incorrectly classified as numeric data. To avoid this, a row is found where all values are numeric, there is at least one fractional number and all following rows contain only numeric values. The last row before this is considered as the last row of annotations."),
+          p("The situation is depicted on the following images where there are three annotation lines and the green and red line show automatic detection. On the left, the numeric matrix contains non-integer values and the last annotation row is detected correctly. On the right, the numeric matrix contains only integers and the last annotation row cannot be detected automatically."),
+					img(src = "helpTab/helpMatrix.png", width = "100%"),
+					h5("Public dataset from MEM", id = "mem"),
+          p("If you select this option, you can choose one dataset at a time. There are three options to filter the number of rows shown:"),
+          HTML("<ul><li>Select one KEGG or Reactome pathway or GO biological process. In case of some rare platforms, it can happen that gene IDs don't convert correctly and no data is shown.</li>
+              <li>Cluster the genes using k-means. The number of clusters is provided by the user. Cluster ID and number of genes in each cluster is shown on the heatmap labels.</li>
+              <li>Choose one of the k-means clusters. This options should be preceded by clustering with k-means and choosing a cluster of interest from the heatmap.</li></ul>"),
+					p("If it happens that some names are very long and make the plot small, you can manually increase the width of the plot. We decided not to truncate the names automatically because sometimes the start of the name is important, sometimes the end and it is hard to decide it automatically. "),
+					p("You can search for dataset and pathway by typing one or more keywords to the search box and then select from drop-down list that appears. The keywords can be about body part, dataset ID or any other word that will appear in the experiment title. All available datasets are summarized in the table below."),
+					h5("List of datasets available", id = "datasets"),
+          dataTableOutput('helpDatasetTable'),
+					h5("List of pathways available", id = "pathways"),
+					dataTableOutput('helpPathwayTable'),
+          h5("Data pre-processing", id = "processing"),
+					p("On this tab, you can choose the method that is used for PCA. This method is also used for imputing missing values to the heatmap and it also determines, for example, whether values on the heatmap are centered or not. Number of components returned depends on the dimensions of the input data matrix. If there are more observations (n) than dimensions (d) then d principal components are calculated. Otherwise, the number of principal components is n."),
+					h5("PCA and heatmap", id = "pca_heatmap"),
 					p("These are the main tabs, allowing you to generate and customize PCA plot and heatmap. Each individual setting is described more precisely with a tooltip that appears if you hover over with the mouse. To download an image, you can use one of the buttons above the plot. The following color palettes from ColorBrewer are available:"),
 					img(src = "helpTab/colorBrewer.png"),
 					p("If there are more than eight groups on the PCA plot, coloring is turned off because human eye cannot distinguish so many colors easily. In this case, shapes should be enough for separating the groups. The following shapes are used:"),
 					img(src = "helpTab/shapes.png"),
 					p("If there are more groups than available shapes, some groups are not shown."),
-					h5("Interpreting the output"),
-					p("Principal Component Analysis performs a linear transformation to turn multivariate data into a form where variables are uncorrelated. These new uncorrelated variables are called Principal Components and they are ordered descending based on the variance explained. Thus, first two components show the data from the angle of most variability, i.e. they create the most \"widespread\" 2D projection. They also approximate the distances between points. Thus, if ellipses on the PCA plot are not overlapping, these groups form separate clusters."),
+					h5("Interpreting the output", id = "interpretation"),
+					p("Principal Component Analysis performs a linear transformation to turn multivariate data into a form where variables are uncorrelated (see Jolliffe, Ian. Principal component analysis. John Wiley & Sons, Ltd, 2002). These new uncorrelated variables are called Principal Components and they are ordered descending based on the variance explained. Thus, first two components show the data from the angle of most variability, i.e. they create the most \"widespread\" 2D projection. They also approximate the distances between points. Thus, if ellipses on the PCA plot are not overlapping, these groups form separate clusters."),
 					p("However, one should be careful when first components describe just a small proportion of the total variation. In this case, approximating original data with 2D projection can be misleading. "),
 					p("The opposite happens when there are only two dimensions in the original data, resulting in 100% of the variation to be explained by the two components. In this case, PCA doesn't make much sense and making a simple scatterplot would be better to interpret in most cases. "),
 					p("Sometimes, first components are related with technical variation such as batch effect, in this case, it makes sense to look at further components that can be attributed to more informative sources of variability."),
@@ -417,7 +442,8 @@ shinyUI(fluidPage(
 					p("When reading the clustering on heatmap, attention should be paid which objects are merged into clustering tree first, not the exact order of rows and/or columns. Any two branches can be swapped without changing the meaning of the tree."),
 					p("An example output and its interpretation is shown below:"),
 					img(src = "helpTab/interpretation.png", width = "100%"),
-					h5("Mathematical basis"),
+					h5("Mathematical basis", id = "mathematics"),
+          p("Calculation of principal components is thoroughly explained in the book by Ian Jolliffe (see Jolliffe, Ian. Principal component analysis. John Wiley & Sons, Ltd, 2002). "),
 					p("Hierarchical clustering of the heatmap starts with calculating all pairwise distances. Objects with the smallest distance are merged in each step. Clustering method defines how to go from object level to cluster level when calculating distance between two clusters."),
 					HTML("Available clustering distances:<ul><li>correlation - Pearson correlation subtracted from 1</li><li>Euclidean - square root of sum of square distances</li><li>maximum - greatest absolute difference between coordinates</li><li>Manhattan - sum of the absolute differences</li><li>Canberra - weighted Manhattan distance</li><li>binary - matrix is binarized (non-zero to 1, zero to 0), number of bits which are 1/0 or 0/1 divided by number of bits which are 0/1, 1/0 or 1/1</li></ul>"),
 					#http://support.minitab.com/en-us/minitab/17/topic-library/modeling-statistics/multivariate/item-and-cluster-analyses/linkage-methods/
@@ -439,7 +465,8 @@ shinyUI(fluidPage(
 					p("6th February 2015 - heatmap tree ordering options added; it is possible to choose different linkage method for rows and columns of heatmap; you can choose color range of the heatmap manually; heatmap annotation titles can be switched off; organism filtering added when importing public datasets; some bug fixes."),
 					p("9th February 2015 - some optimization and help text added when importing dataset from ArrayExpress."),
 					p("1st April 2015 - major revision based on comments from reviewers: some example datasets removed; it is possible to cluster whole gene expression dataset first using k-means or select one k-means cluster; some warning messages added; Bayesian PCA removed; PCA and heatmap options grouped; percentages shown together with axis labels; color and shape can be changed independently on PCA plot; help page improved a lot; example captions added for PCA plot and heatmap; new export options added; heatmap default color changed."),
-					p("6th April 2015 - small improvements related with option 'import prepared gene expression matrix'.")
+					p("6th April 2015 - small improvements related with option 'import prepared gene expression matrix'."),
+					p("17th April 2015 - second revision based on comments from reviewers: number of species increased to 17; more informative error messages for data upload; number of NAs in rows and columns is shown during upload; help page improved (including list of all datasets and pathways).")
 				),
 				id = "tabs1"
 			)

@@ -81,13 +81,13 @@ shinyServer(function(input, output, session) {
 				if(settingsLarge){
 					mat = filterRows(session, anno, mat, input, organism = "hsapiens")
 				}
-				return(list(anno = anno, mat = mat, n = n, sep = sep, inputSaved = input))
+				return(list(anno = anno, mat = mat, n = n, sep = sep, inputSaved = input,
+				            annoLevsTab = NULL, message = NULL))
 			} else {
 				return(NULL)
 			}
 		} else if(input$uploadDataInput == 5){
 			if(input$uploadPbDataset != ""){
-
 				ncFile = str_c(projectBrowserPath, input$uploadPbDataset, ".nc")
 				if(!file.exists(ncFile)) return(NULL) #when changing platform, initially old dataset remains active
 				library(RNetCDF)
@@ -111,7 +111,8 @@ shinyServer(function(input, output, session) {
 					colnames(anno) = varsAnno
 					annoLevs = sapply(anno, function(x) length(unique(x)))
 					annoLevsTab = as.data.frame(lapply(annoLevs, identity))
-					w2 = which((annoLevs >= input$uploadMinAnnoLevels) & (annoLevs <= input$uploadMaxAnnoLevels))
+					w2 = which((annoLevs >= input$uploadMinAnnoLevels) & 
+                       (annoLevs <= input$uploadMaxAnnoLevels))
 					if(length(w2) > 0){
 						anno = anno[, w2, drop = FALSE]
 						n = ncol(anno)
@@ -124,15 +125,15 @@ shinyServer(function(input, output, session) {
 					annoLevsTab = NULL
 					n = 0
 				}
-				wOrg = which(vars %in% c("Organism"))[1]
-				org = unique(var.get.nc(nc, wOrg - 1))[1]
-				str = strsplit(org, " ")[[1]]
+				#wOrg = which(vars %in% c("Organism"))[1]; org = unique(var.get.nc(nc, wOrg - 1))[1] #old
+				org = input$uploadOrganism
+        str = strsplit(org, " ")[[1]]
 				org2 = str_c(tolower(str_sub(str[1], 1, 1)), str[2])
 				close.nc(nc)
 				
 				mat = filterRows(session, anno, mat, input, organism = org2)
 				return(list(anno = anno, mat = mat, n = n, sep = ",", 
-                    inputSaved = input, annoLevsTab = annoLevsTab))
+                    inputSaved = input, annoLevsTab = annoLevsTab, message = NULL))
 			} else {
 				return(NULL)
 			}
@@ -152,13 +153,30 @@ shinyServer(function(input, output, session) {
 		}
 		
 		readText = function(f, sep){
-			read.table(f, sep = sep, header = TRUE, fill = TRUE, 
-                 row.names = 1, colClasses = "character", check.names = FALSE)
+			read.table(f, sep = sep, header = TRUE, fill = TRUE, colClasses = "character", check.names = FALSE)
 		}
 		library(plyr)
 		safeRead = failwith(NULL, readText, quiet = TRUE)
+		message = NULL
 		data = safeRead(f2, sep)
-		
+    if(!is.null(data)){
+      rn = data[, 1]
+      if(any(duplicated(rn))){
+        #make row names unique
+        rn = make.unique(rn)
+        message = str_c(message, "Row names were converted because they were not unique!")
+      }
+      cn = colnames(data)[-1]
+      if(any(duplicated(cn))){
+        #make column names unique
+        cn = make.unique(cn)
+        message = str_c(message, "Column names were converted because they were not unique!", sep = "\n")
+      }
+      data = data[, -1, drop = FALSE]
+      rownames(data) = rn
+      colnames(data) = cn
+    }
+    #message = str_c(message, "abc")
 		if(is.null(data) || nrow(data) < 1 || ncol(data) < 1) return(NULL)
 		data2 = apply(data, 1:2, function(x) gsub(",", ".", x))
 		data2[is.na(data2)] = ""
@@ -190,7 +208,7 @@ shinyServer(function(input, output, session) {
 		if(n == 0){
 			anno = NULL
 		} else {
-			anno = as.data.frame(t(data[1:n, ]))
+			anno = as.data.frame(t(data[1:n, , drop = FALSE]))
 			anno[is.na(anno)] = "NA" #to make filtering and heatmap annotations work correctly
 		}
 		if(n == nrow(data)){
@@ -200,12 +218,27 @@ shinyServer(function(input, output, session) {
 			mat = apply(mat, 1:2, as.numeric)
 		}
 		updatePcsAnnos(session, anno, mat, input)
-		return(list(anno = anno, mat = mat, n = n, sep = sep, inputSaved = input, annoLevsTab = NULL))
+		return(list(anno = anno, mat = mat, n = n, sep = sep, inputSaved = input, 
+                annoLevsTab = NULL, message = message))
 	})
 
 	#filter columns
 	filterColumns = reactive({
 		data = readData()
+    
+		#missing values:
+		#http://stackoverflow.com/questions/20669150/exclude-row-names-from-r-shiny-rendertable
+		if(!is.null(data$mat)){
+		  data$naRows = findNAs(data$mat, 1)
+		  data$naCols = findNAs(data$mat, 2)
+      data$naRowsAll = names(data$naRows[data$naRows == ncol(data$mat)])
+      data$naColsAll = names(data$naCols[data$naCols == nrow(data$mat)])
+		  wr = which(!(rownames(data$mat) %in% data$naRowsAll))
+		  wc = which(!(colnames(data$mat) %in% data$naColsAll))
+		  data$mat = data$mat[wr, wc, drop = FALSE]
+		  data$anno = data$anno[wc, , drop = FALSE]
+		}
+    
 		if(!is.null(data$anno)){
 			w = findRetainedColumns(data$anno, data$inputSaved)
 			if(length(w) > 0){
@@ -217,7 +250,7 @@ shinyServer(function(input, output, session) {
 		}
 		data
 	})
-	
+  
 	#http://stackoverflow.com/questions/18816666/shiny-change-data-input-of-buttons
 	values = reactiveValues()
 	observe({
@@ -255,16 +288,73 @@ shinyServer(function(input, output, session) {
 	})
 	
 	output$uploadDataTable = renderTable({
-	  validate(
-	    need(!is.null(values$data$mat), "No data found, you can visit 'Help' tab for instructions about data format!")
-	  )
 		cutMatrix(values$data$mat)
 	})
+  
+	output$uploadNAsRows = renderTable({
+	  if(!is.null(values$data$mat)){
+      gp = values$data$naRows
+	    validate(
+	      need(!is.null(gp), "No NAs in rows.")
+	    )
+	    return(cutMatrix(rbind(gp), digits = 0))
+	  } else {
+	    #return(data.frame(All = 0L))
+      return(NULL)
+	  }
+	}, include.rownames = FALSE)
 	
+	output$uploadNAsCols = renderTable({
+	  if(!is.null(values$data$mat)){
+	    gp = values$data$naCols
+	    validate(
+	      need(!is.null(gp), "No NAs in columns.")
+      )
+	    return(cutMatrix(rbind(gp), digits = 0))
+	  } else {
+	    #return(data.frame(All = 0L))
+      return(NULL)
+	  }
+	}, include.rownames = FALSE)
+	
+  output$uploadWarnings = renderText({
+    missing = c(input$uploadPbDataset == "", input$uploadPbPathway == "")
+    words = c("a dataset", "a pathway (or change row filtering type)")
+    warnWords = str_c(words[missing], collapse = " and ")
+    validate(
+      need(is.null(values$data$message), values$data$message),
+      need(!(input$uploadDataInput == 2 & is.null(input$uploadFile)), "Please choose a file to upload!"),
+      need(!(input$uploadDataInput == 3 & (is.null(input$uploadCopyPaste) || input$uploadCopyPaste == "")), "Please copy your data to the text box on the left!"),
+      need(!(input$uploadDataInput == 5 & input$uploadRowFiltering == 1 & 
+          (input$uploadPbDataset == "" | input$uploadPbPathway == "")), 
+          str_c("Please choose ", warnWords, "!")),
+      need(!(input$uploadDataInput == 5 & input$uploadRowFiltering != 1 & 
+          input$uploadPbDataset == ""), "Please choose a dataset!"),
+      need(!(input$uploadDataInput %in% c(4, 6) & 
+               input$uploadSettingsId == ""), "No settings ID found!")
+    )
+    validate(
+      need(!is.null(values$data$mat), "No data found, you can visit 'Help' tab for instructions about data format!")
+    )
+    if(!is.null(values$data$mat)){
+      nar = values$data$naRowsAll
+      nac = values$data$naColsAll
+      sd0r = findSD0(values$data$mat, 1)
+      sd0c = findSD0(values$data$mat, 2)
+      validate(
+        need(length(nar) == 0, str_c("The following rows had all missing values and were removed: ", str_c(nar, collapse = ", "))),
+        need(length(nac) == 0, str_c("The following columns had all missing values and were removed: ", str_c(nac, collapse = ", "))),
+        need(length(sd0r) == 0, str_c("The following rows are constant and may cause problems with some clustering distances (e.g. correlation): ", str_c(sd0r, collapse = ", "))),
+        need(length(sd0c) == 0, str_c("The following columns are constant and may cause problems with some clustering distances (e.g. correlation): ", str_c(sd0c, collapse = ", ")))
+      )
+    } else {
+      return(NULL)
+    }
+  })
 	
 	#pre-processing
 	getProc = reactive({
-		proc = dataProcess(data = values$data)
+	  proc = dataProcess(data = values$data)
     updateNbrs(session, proc$matImputed)
     proc
 	})
@@ -314,7 +404,7 @@ shinyServer(function(input, output, session) {
 	  cutMatrix(getProc()$pcaLoadings)
 	})
   
-	#PCA	
+	#PCA
 	getPCA = reactive({
 		data = getProc()
 		#http://shiny.rstudio.com/articles/validation.html
@@ -334,8 +424,10 @@ shinyServer(function(input, output, session) {
 		data = getProc()
 		validate(
 			need(!is.null(data), "No data found, please revisit 'Data upload' tab!"),
-			need(all(dim(data$mat) <= maxDimensionHeatmap), str_c("Data matrices with a dimension larger than ", 
-				maxDimensionHeatmap, " are currently not supported, please revisit 'Data upload' tab and filter some samples or upload a smaller file!"))
+			need(nrow(data$mat) <= maxDimensionHeatmap, str_c("Data matrices with more than ", maxDimensionHeatmap, 
+        " rows are currently not supported, please revisit 'Data upload' tab and change row filtering options or upload a smaller file!")),
+			need(ncol(data$mat) <= maxDimensionHeatmap, str_c("Data matrices with more than ", maxDimensionHeatmap, 
+        " columns are currently not supported, please revisit 'Data upload' tab and filter some columns or collapse columns with similar annotations on 'Data pre-processing' tab or upload a smaller file!"))
 		)
 		data$hcRows = calcClustering(data$matImputed, data$inputSaved$hmClustDistRows, 
       data$inputSaved$hmClustMethodRows, data$inputSaved$hmTreeOrderingRows)
@@ -552,7 +644,7 @@ shinyServer(function(input, output, session) {
 		  if(org != ""){
 		    str = strsplit(org, " ")
 		    org_short = str_c(tolower(str_sub(str[[1]][1], 1, 1)), str[[1]][2])
-		    load(file = str_c(pwPath, "clustvisInput_", pwDate, "_", org_short, ".RData"))
+		    load(file = str_c(pwPath, "clustvisInput_", pwDate, "_spec_", org_short, ".RData"))
 		    w = which(uploadDatasetTable$organism == input$uploadOrganism & 
 		                uploadDatasetTable$nAnnos >= input$uploadMinAnnoTracks)
 		    df = uploadDatasetTable[w, , drop = FALSE]
@@ -575,7 +667,7 @@ shinyServer(function(input, output, session) {
       if(org != ""){
         str = strsplit(org, " ")
         org_short = str_c(tolower(str_sub(str[[1]][1], 1, 1)), str[[1]][2])
-        load(file = str_c(pwPath, "clustvisInput_", pwDate, "_", org_short, ".RData"))
+        load(file = str_c(pwPath, "clustvisInput_", pwDate, "_spec_", org_short, ".RData"))
         pwlist = c("", uploadPathwayList)
         updateSelectizeInput(session, "uploadPbPathway", choices = pwlist, selected = "", server = TRUE) #faster
       }
@@ -605,60 +697,74 @@ shinyServer(function(input, output, session) {
 		}
 	})
 	
-	output$legendPCA <- renderPrint({
+	output$legendPCA <- renderUI({
 	  data = getProc()
-    leg = c()
-    if(data$inputSaved$procMethodAgg != "no collapse"){
-      leg = append(leg, c("Columns with similar annotations are collapsed by taking ", 
-                   data$inputSaved$procMethodAgg, " inside each group. "))
+    if(!is.null(data)){
+      leg = c()
+      if(data$inputSaved$procMethodAgg != "no collapse"){
+        leg = append(leg, c("Columns with similar annotations are collapsed by taking ", 
+                            data$inputSaved$procMethodAgg, " inside each group. "))
+      }
+      sc = names(procScalings)[match(data$inputSaved$procScaling, procScalings)]
+      meth = names(procMeth)[match(data$inputSaved$procMethod, procMeth)]
+      pcs = c(as.numeric(data$inputSaved$pcaPcx), as.numeric(data$inputSaved$pcaPcy))
+      leg = append(leg, c(capitalize(sc), " is applied to rows; ", meth, " is used to calculate principal components. X and Y axis show principal component ", data$inputSaved$pcaPcx, 
+                          " and principal component ", data$inputSaved$pcaPcy, " that explain ", round(data$varTable[1, pcs[1]] * 100, 1), "% and ", round(data$varTable[1, pcs[2]] * 100, 1), "% of the total variance, respectively. "))
+      if(toBoolean(data$inputSaved$pcaShowEllipses)){
+        leg = append(leg, c("Prediction ellipses are such that with probability ", 
+                            data$inputSaved$pcaEllipseConf, 
+                            ", a new observation from the same group will fall inside the ellipse. "))
+      }
+      leg = append(leg, c("N = ", nrow(data$matPca), " data points."))
+      #http://stackoverflow.com/questions/23233497/outputting-multiple-lines-of-text-with-rendertext-in-r-shiny
+      return(HTML("<h5>Caption example</h5><p>", str_c(leg, collapse = ""), "</p>"))
     }
-    sc = names(procScalings)[match(data$inputSaved$procScaling, procScalings)]
-    meth = names(procMeth)[match(data$inputSaved$procMethod, procMeth)]
-	  pcs = c(as.numeric(data$inputSaved$pcaPcx), as.numeric(data$inputSaved$pcaPcy))
-    leg = append(leg, c(capitalize(sc), " is applied to rows; ", meth, " is used to calculate principal components. X and Y axis show principal component ", data$inputSaved$pcaPcx, 
-        " and principal component ", data$inputSaved$pcaPcy, " that explain ", round(data$varTable[1, pcs[1]] * 100, 1), "% and ", round(data$varTable[1, pcs[2]] * 100, 1), "% of the total variance, respectively. "))
-    if(toBoolean(data$inputSaved$pcaShowEllipses)){
-      leg = append(leg, c("Prediction ellipses are such that with probability ", 
-                   data$inputSaved$pcaEllipseConf, 
-                   ", a new observation from the same group will fall inside the ellipse. "))
-    }
-    leg = append(leg, c("N = ", nrow(data$matPca), " data points."))
-    cat(leg, sep = "")
 	})
   
-	output$legendHeatmap <- renderPrint({
-    data = getClust()
-    leg = c()
-    if(data$inputSaved$procMethodAgg != "no collapse"){
-      leg = append(leg, c("Columns with similar annotations are collapsed by taking ", 
-                          data$inputSaved$procMethodAgg, " inside each group. "))
-    }
-    sc = names(procScalings)[match(data$inputSaved$procScaling, procScalings)]
-    scaling = str_c(sc, " is applied to rows. ")
-    if(toBoolean(data$inputSaved$procCentering)){
-      leg = append(leg, c("Rows are centered; ", scaling))
-    } else {
-      leg = append(leg, capitalize(scaling))
-    }
-    meth = names(procMeth)[match(data$inputSaved$procMethod, procMeth)]
-    if(sum(is.na(data$mat)) > 0){
-      leg = append(leg, c(meth, " is used for missing value estimation. "))
-    }
-    distLabelRows = names(clustDists)[match(data$inputSaved$hmClustDistRows, clustDists)]
-    distLabelCols = names(clustDists)[match(data$inputSaved$hmClustDistCols, clustDists)]
-    linkLabelRows = names(clustMethods)[match(data$inputSaved$hmClustMethodRows, clustMethods)]
-    linkLabelCols = names(clustMethods)[match(data$inputSaved$hmClustMethodCols, clustMethods)]
-    if(distLabelRows == distLabelCols & linkLabelRows == linkLabelCols & distLabelRows != noClust){
-      leg = append(leg, c("Both rows and columns are clustered using ", distLabelRows, " distance and ", linkLabelRows, " linkage. "))
-    } else {
-      if(distLabelRows != noClust){
-        leg = append(leg, c("Rows are clustered using ", distLabelRows, " distance and ", linkLabelRows, " linkage. "))
+	output$legendHeatmap <- renderUI({
+    if(!is.null(values$data) && all(dim(values$data$mat) <= maxDimensionHeatmap)){
+      data = getProc()
+      leg = c()
+      if(data$inputSaved$procMethodAgg != "no collapse"){
+        leg = append(leg, c("Columns with similar annotations are collapsed by taking ", 
+                            data$inputSaved$procMethodAgg, " inside each group. "))
       }
-      if(distLabelCols != noClust){
-        leg = append(leg, c("Columns are clustered using ", distLabelCols, " distance and ", linkLabelCols, " linkage. "))
+      sc = names(procScalings)[match(data$inputSaved$procScaling, procScalings)]
+      scaling = str_c(sc, " is applied to rows. ")
+      if(toBoolean(data$inputSaved$procCentering)){
+        leg = append(leg, c("Rows are centered; ", scaling))
+      } else {
+        leg = append(leg, capitalize(scaling))
       }
+      meth = names(procMeth)[match(data$inputSaved$procMethod, procMeth)]
+      if(sum(is.na(data$mat)) > 0){
+        leg = append(leg, c(meth, " is used for missing value estimation. "))
+      }
+      distLabelRows = names(clustDists)[match(data$inputSaved$hmClustDistRows, clustDists)]
+      distLabelCols = names(clustDists)[match(data$inputSaved$hmClustDistCols, clustDists)]
+      linkLabelRows = names(clustMethods)[match(data$inputSaved$hmClustMethodRows, clustMethods)]
+      linkLabelCols = names(clustMethods)[match(data$inputSaved$hmClustMethodCols, clustMethods)]
+      if(distLabelRows == distLabelCols & linkLabelRows == linkLabelCols & distLabelRows != noClust){
+        leg = append(leg, c("Both rows and columns are clustered using ", distLabelRows, " distance and ", linkLabelRows, " linkage. "))
+      } else {
+        if(distLabelRows != noClust){
+          leg = append(leg, c("Rows are clustered using ", distLabelRows, " distance and ", linkLabelRows, " linkage. "))
+        }
+        if(distLabelCols != noClust){
+          leg = append(leg, c("Columns are clustered using ", distLabelCols, " distance and ", linkLabelCols, " linkage. "))
+        }
+      }
+      return(HTML("<h5>Caption example</h5><p>", str_c(leg, collapse = ""), "</p>"))
     }
-    cat(leg, sep = "")
 	})
+  
+  #http://shiny.rstudio.com/articles/datatables.html
+	output$helpDatasetTable = renderDataTable({
+	  helpDatasetTable
+	}, options = helpTablesOptions)
+  
+	output$helpPathwayTable = renderDataTable({
+	  helpPathwayTable
+	}, options = helpTablesOptions)
 })
 
