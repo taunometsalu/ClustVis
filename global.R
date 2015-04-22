@@ -50,7 +50,7 @@ tooltipPlace = "right"
 useSelectize = FALSE #https://github.com/ebailey78/shinyBS/issues/7
 shapeList = c("letters", "various")
 maxCharactersAnnotations = 20 #how many characters to show for long annotations - to cut too long names
-maxDimensionHeatmap = 600 #how large matrix we allow for heatmap (clustering and plotting a large matrix will be slow)
+maxDimensionHeatmap = 1200 #how large matrix we allow for heatmap (clustering and plotting a large matrix will be slow)
 gprofDate = "20150416" #"20150205" #gprofOntos file
 pwDate = "20150416" #"20150205" #clustvisInput file
 pwPath = str_c("/home/metsalu/predect/results/cache/clustvis/", pwDate, "/")
@@ -177,8 +177,9 @@ dataProcess = function(data){
 	attach(data, warn.conflicts = FALSE)
 	procCentering = toBoolean(inputSaved$procCentering)
 	
-	annoFiltered = anno[, inputSaved$procAnno, drop = FALSE]
+  anno = data$anno #otherwise not attached if anno = NULL
 	if(inputSaved$procMethodAgg != "no collapse"){
+	  annoFiltered = anno[, inputSaved$procAnno, drop = FALSE]
 		coll = collapseSimilarAnnoMat(annoFiltered, mat, get(inputSaved$procMethodAgg))
 		anno = coll$anno
 		mat = coll$mat

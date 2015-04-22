@@ -248,6 +248,15 @@ shinyServer(function(input, output, session) {
 				data$anno = data$mat = NULL
 			}
 		}
+    
+    if(toBoolean(data$inputSaved$uploadMatrixTranspose)){
+      if(!is.null(data$mat)){
+        data$mat = t(data$mat)
+      }
+      data$anno = NULL
+      updatePcsAnnos(session, data$anno, data$mat, data$inputSaved)
+    }
+    
 		data
 	})
   

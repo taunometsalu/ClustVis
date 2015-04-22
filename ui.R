@@ -68,11 +68,12 @@ shinyUI(fluidPage(
 					)
 				),
 				
-				h5("Column filtering:"),
+				h5("Data matrix reshape:"),
 				checkboxGroupInput("uploadColumnFiltering", "", c("filter columns" = TRUE), FALSE),
 				conditionalPanel(condition = "input.uploadColumnFiltering != ''",
 					uiOutput("uploadColumnFilters")
 				),
+				checkboxGroupInput("uploadMatrixTranspose", "", c("transpose matrix" = TRUE), FALSE),
         
 				conditionalPanel(condition = "input.uploadDataInput == '5' || input.uploadDataInput == '6'",
 				  h5("Row filtering:"),
@@ -252,6 +253,7 @@ shinyUI(fluidPage(
 			bsTooltip("uploadMinAnnoLevels", "You can filter out less informative annotations, e.g. those that are constant.", tooltipPlace),
 			bsTooltip("uploadMaxAnnoLevels", "You can filter out less informative annotations, e.g. those that have different value for each sample.", tooltipPlace),
 			bsTooltip("uploadColumnFiltering", "You can select a subset of columns using annotation groups.", tooltipPlace),
+			bsTooltip("uploadMatrixTranspose", "You can transpose the data matrix. Annotations (if any) will be lost in this case.", tooltipPlace),
 			bsTooltip("uploadRowFiltering", "How to limit the number of rows shown - take one pathway, cluster the genes using k-means and show cluster centers or choose one specific cluster from k-means clustering.", tooltipPlace),
 			bsTooltip("uploadNbrClusters", "Number of clusters after appying k-means clustering.", tooltipPlace),
 			bsTooltip("uploadClusterId", "Which cluster to visualize more closely. The previous option should be run first to identify a cluster of interest.", tooltipPlace),
@@ -466,7 +468,8 @@ shinyUI(fluidPage(
 					p("9th February 2015 - some optimization and help text added when importing dataset from ArrayExpress."),
 					p("1st April 2015 - major revision based on comments from reviewers: some example datasets removed; it is possible to cluster whole gene expression dataset first using k-means or select one k-means cluster; some warning messages added; Bayesian PCA removed; PCA and heatmap options grouped; percentages shown together with axis labels; color and shape can be changed independently on PCA plot; help page improved a lot; example captions added for PCA plot and heatmap; new export options added; heatmap default color changed."),
 					p("6th April 2015 - small improvements related with option 'import prepared gene expression matrix'."),
-					p("17th April 2015 - second revision based on comments from reviewers: number of species increased to 17; more informative error messages for data upload; number of NAs in rows and columns is shown during upload; help page improved (including list of all datasets and pathways).")
+					p("17th April 2015 - second revision based on comments from reviewers: number of species increased to 17; more informative error messages for data upload; number of NAs in rows and columns is shown during upload; help page improved (including list of all datasets and pathways)."),
+					p("21st April 2015 - option to transpose the data matrix added under 'Data upload'; maximal heatmap dimension increased to 1200; a small bug fixed related with uploading a dataset without annotations.")
 				),
 				id = "tabs1"
 			)
