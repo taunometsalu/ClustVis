@@ -1,5 +1,4 @@
-source("/home/metsalu/ShinyApps/upload_webtool/global.R")
-#source("/home/metsalu/ShinyApps/upload_webtool_test/global.R")
+source("/srv/shiny-server/global.R")
 
 shinyServer(function(input, output, session) {
 	readData = reactive({
@@ -7,7 +6,7 @@ shinyServer(function(input, output, session) {
 		gAnno = toBoolean(input$uploadGuessAnno)
 		
 		if(input$uploadDataInput == 1){
-			f = str_c("datasets/", input$uploadSampleData)
+			f = str_c(path, "datasets/", input$uploadSampleData)
 		} else if(input$uploadDataInput == 2){
 			inFile = input$uploadFile
 			if (is.null(input$uploadFile))  {return(NULL)}
@@ -90,7 +89,6 @@ shinyServer(function(input, output, session) {
 			if(input$uploadPbDataset != ""){
 				ncFile = str_c(projectBrowserPath, input$uploadPbDataset, ".nc")
 				if(!file.exists(ncFile)) return(NULL) #when changing platform, initially old dataset remains active
-				library(RNetCDF)
 				nc = open.nc(ncFile)
 				n = file.inq.nc(nc)$nvars #variable indices 0 .. n-1
 				vars = sapply(1:n, function(x) var.inq.nc(nc, x - 1)$name)
@@ -155,7 +153,6 @@ shinyServer(function(input, output, session) {
 		readText = function(f, sep){
 			read.table(f, sep = sep, header = TRUE, fill = TRUE, colClasses = "character", check.names = FALSE)
 		}
-		library(plyr)
 		safeRead = failwith(NULL, readText, quiet = TRUE)
 		message = NULL
 		data = safeRead(f2, sep)
@@ -183,7 +180,6 @@ shinyServer(function(input, output, session) {
 		
 		#guess border between annotations and numeric data:
 		if(gAnno || !is.numeric(input$uploadNbrAnnoRows) || input$uploadNbrAnnoRows < 0 || input$uploadNbrAnnoRows >= nrow(data)){
-			library(Hmisc)
 			rowsNumeric = apply(data2, 1, function(x) all.is.numeric(x))
 			#http://stackoverflow.com/questions/3476782/how-to-check-if-the-number-is-integer
 			rowsInteger = apply(data2[rowsNumeric, , drop = FALSE], 1, 
@@ -343,7 +339,7 @@ shinyServer(function(input, output, session) {
                input$uploadSettingsId == ""), "No settings ID found!")
     )
     validate(
-      need(!is.null(values$data$mat), "No data found, you can visit 'Help' tab for instructions about data format!")
+      need(!is.null(values$data$mat), "No numeric data found, you can visit 'Help' tab for instructions about data format!")
     )
     if(!is.null(values$data$mat)){
       nar = values$data$naRowsAll
@@ -452,9 +448,9 @@ shinyServer(function(input, output, session) {
 	
 	#http://shiny.rstudio.com/articles/images.html
 	output$heatmap = renderImage({
-		outfile = tempfile(fileext = '.png')
+		outfile = tempfile(fileext = '.png', tmpdir = sessPath)
 		gh = plotHeatmap(data = getClust(), filename = outfile)
-	    list(src = outfile, contentType = 'image/png', width = gh$picw, height = gh$pich)
+    list(src = outfile, contentType = 'image/png', width = gh$picw, height = gh$pich)
 	}, deleteFile = TRUE)
 	
 	#export
@@ -517,7 +513,7 @@ shinyServer(function(input, output, session) {
 	  filename = function() { str_c(toolname, "InitialData.csv") },
 	  content = function(file) {
 	    d = rbind(t(values$data$anno), values$data$mat)
-	    write.csv(d, file)
+	    writeOutput(d, file)
 	  }
 	)
   
@@ -525,7 +521,7 @@ shinyServer(function(input, output, session) {
 	  filename = function() { str_c(toolname, "ProcessedData.csv") },
 	  content = function(file) {
       d = getProc()$matImputed
-	    write.csv(d, file)
+      writeOutput(d, file)
 	  }
 	)
 
@@ -533,7 +529,7 @@ shinyServer(function(input, output, session) {
 	  filename = function() { str_c(toolname, "PCAscores.csv") },
 	  content = function(file) {
 	    d = getProc()$matPca
-	    write.csv(d, file)
+	    writeOutput(d, file)
 	  }
 	)
   
@@ -541,7 +537,7 @@ shinyServer(function(input, output, session) {
 	  filename = function() { str_c(toolname, "PCAloadings.csv") },
 	  content = function(file) {
 	    d = getProc()$pcaLoadings
-	    write.csv(d, file)
+	    writeOutput(d, file)
 	  }
 	)
   
@@ -549,7 +545,6 @@ shinyServer(function(input, output, session) {
 	  filename = function() { str_c(toolname, "PCAvartable.csv") },
 	  content = function(file) {
 	    d = getProc()$varTable
-	    write.csv(d, file)
 	  }
 	)
   
@@ -660,7 +655,7 @@ shinyServer(function(input, output, session) {
 		    dslist = df$id2
 		    names(dslist) = df$label3
 		    dslist = c("", dslist)
-		    updateSelectizeInput(session, "uploadPbDataset", choices = dslist, selected = "", server = TRUE) #faster
+		    updateSelectizeInput(session, "uploadPbDataset", choices = dslist, selected = "", server = TRUE) #server = TRUE is faster, but doesn't work correctly in the new version of shiny (0.11.1)
 		  }
 		}
 	})
@@ -678,7 +673,7 @@ shinyServer(function(input, output, session) {
         org_short = str_c(tolower(str_sub(str[[1]][1], 1, 1)), str[[1]][2])
         load(file = str_c(pwPath, "clustvisInput_", pwDate, "_spec_", org_short, ".RData"))
         pwlist = c("", uploadPathwayList)
-        updateSelectizeInput(session, "uploadPbPathway", choices = pwlist, selected = "", server = TRUE) #faster
+        updateSelectizeInput(session, "uploadPbPathway", choices = pwlist, selected = "", server = TRUE)
       }
 		}
 	})
@@ -697,9 +692,9 @@ shinyServer(function(input, output, session) {
 				uni = sort(as.vector(unique(anno[, i])))
 				uniCut = cutLong(uni, maxCharactersAnnotations)
 				names(uni) = str_c("- ", uniCut)
-				taglist[[n + 1]] = checkboxGroupInput(id, "", choices = cn[i])
+				taglist[[n + 1]] = checkboxGroupInput(id, NULL, choices = cn[i])
 				taglist[[n + 2]] = conditionalPanel(condition = str_c("input.", id, " != ''"),
-					checkboxGroupInput(str_c(id, "sub"), "", choices = uni, selected = uni)
+					checkboxGroupInput(str_c(id, "sub"), NULL, choices = uni, selected = uni)
 				)
 			}
 			taglist

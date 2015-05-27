@@ -1,18 +1,28 @@
-path = "/home/metsalu/ShinyApps/upload_webtool/"
-#path = "/home/metsalu/ShinyApps/upload_webtool_test/"
+path = "/srv/shiny-server/"
+libPath = "/usr/local/lib/R/site-library/"
+sessPathLarge = "/srv/settings_large/" #where to save settings with large datasets
+sessPath = "/srv/settings/" #where to save settings
+cachePath = "/srv/data_cache/"
+pbPathPrefix = "/srv/data_pb/"
 
-lib = "/home/metsalu/ShinyApps/pca_431095613456015691/R/"
-.libPaths(lib)
-sessPath = "/home/metsalu/ShinyApps/upload_webtool_settings/" #where to save settings
-sessPathLarge = "/home/metsalu/ShinyApps/upload_webtool_settings_large/" #where to save settings with large datasets
-
+.libPaths(libPath)
 library(stringr)
 options(stringsAsFactors = FALSE)
-library(rCharts)
+library(RNetCDF)
 library(shiny)
 library(shinyBS)
 library(reshape)
 library(Hmisc)
+library(RColorBrewer)
+library(FactoMineR)
+library(pcaMethods)
+library(gProfileR)
+library(plyr)
+library(Hmisc)
+library(ggplot2)
+library(grid)
+#library(grid); source("/home/metsalu/Dokumendid/Ülikool/BIIT/Projektid/predect/homepage/gen/R/pheatmap.r")
+library(grid); source(str_c(path, "R/pheatmap.r"))
 
 toolname = "clustvis"
 #http://stackoverflow.com/questions/2129952/creating-a-plot-window-of-a-particular-size
@@ -32,7 +42,6 @@ treeOrderings = c("tightest cluster first",
 charlist = c(LETTERS, letters, 0:9)
 #http://stackoverflow.com/questions/1478532/changing-shapes-used-for-scale-shape-in-ggplot2
 variouslist = c(16, 15, 17:18, 1, 0, 2:14)
-library(RColorBrewer)
 colortab = brewer.pal.info #all RColorBrewer colors
 colSequential = rownames(colortab)[colortab$category == "seq"]
 colDiverging = rownames(colortab)[colortab$category == "div"]
@@ -47,17 +56,21 @@ names(procScalings) = c("no scaling", "unit variance scaling", "Pareto scaling",
 procMethAgg = c("no collapse", "median", "mean")
 lineTypeList = c("solid", "dashed", "dotted", "dotdash", "longdash","twodash")
 tooltipPlace = "right"
+tooltipOptions = list(container = "body") #https://github.com/ebailey78/shinyBS/issues/15
 useSelectize = FALSE #https://github.com/ebailey78/shinyBS/issues/7
 shapeList = c("letters", "various")
 maxCharactersAnnotations = 20 #how many characters to show for long annotations - to cut too long names
 maxDimensionHeatmap = 1200 #how large matrix we allow for heatmap (clustering and plotting a large matrix will be slow)
 gprofDate = "20150416" #"20150205" #gprofOntos file
 pwDate = "20150416" #"20150205" #clustvisInput file
-pwPath = str_c("/home/metsalu/predect/results/cache/clustvis/", pwDate, "/")
-load(file = str_c("/home/metsalu/predect/results/cache/clustvis/", pwDate, "/clustvisInput_", pwDate, ".RData"))
-load(file = str_c("/home/metsalu/predect/results/cache/clustvis/", pwDate, "/clustvisInput_", pwDate, "_helpTables.RData"))
+pwPath = str_c(cachePath, pwDate, "/")
+load(file = str_c(cachePath, pwDate, "/clustvisInput_", pwDate, ".RData"))
+str = strsplit(projectBrowserPath, "/")[[1]]
+projectBrowserPath = str_c(pbPathPrefix, str[length(str)], "/")
+load(file = str_c(cachePath, pwDate, "/clustvisInput_", pwDate, "_helpTables.RData"))
 helpTablesOptions = list(lengthMenu = c(5, 10, 25, 50), pageLength = 5) #options for help page tables
-setwd(path)
+#setwd(path)
+setwd(sessPath)
 options(shiny.maxRequestSize = 2 * 1024 ^ 2) #http://stackoverflow.com/questions/18037737/how-to-change-maximum-upload-size-exceeded-restriction-in-shiny-and-save-user
 
 #convert checkboxGroup to boolean
@@ -120,7 +133,6 @@ convert2safe = function(id){
 }
 
 calcEllipses = function(x2, conf){
-	library(FactoMineR)
 	tab = table(x2$groupingColor)
 	grs = names(tab[tab > 2])
 	x3 = x2[which(x2$groupingColor %in% grs), c("groupingColor", "pcx", "pcy")]
@@ -171,6 +183,10 @@ findSD0 = function(mat, dim){
   dimnames(mat)[[dim]][which(sds == 0)]
 }
 
+writeOutput = function(d, file){
+  write.csv(d, file)
+}
+
 dataProcess = function(data){
 	if(is.null(data)) return(NULL)
 	set.seed(124987234)
@@ -185,7 +201,6 @@ dataProcess = function(data){
 		mat = coll$mat
 	}
   
-	library(pcaMethods)
 	prep = prep(t(mat), scale = inputSaved$procScaling, center = procCentering)
 	pca = pca(prep, method = inputSaved$procMethod, nPcs = min(dim(mat)))
 	matPca = scores(pca)
@@ -200,7 +215,11 @@ dataProcess = function(data){
 }
 
 updatePcsAnnos = function(session, anno, mat, input){
-	npc = min(dim(mat))
+  if(!is.null(mat)){
+    npc = min(dim(mat))
+  } else {
+    npc = 1
+  }
 	if(!is.null(anno)){
 		cn = colnames(anno)
 	} else {
@@ -265,12 +284,9 @@ filterRows = function(session, anno, mat, input, organism){
     if(input$uploadDataInput == 5){
       platf = strsplit(input$uploadPbDataset, "/")[[1]][1]
       targetPlatform = uploadPlatformTable$name[uploadPlatformTable$id == platf]
-      library(gProfileR)
-      library(plyr)
       safegconvert = failwith(data.frame(), gconvert, TRUE)
       gcon = safegconvert(glist, organism = organism, target = targetPlatform)
       if(nrow(gcon) > 0){
-        library(Hmisc)
         if(all.is.numeric(rownames(mat))){
           rownames(mat) = str_c(targetPlatform, ":", rownames(mat))
         }
@@ -367,8 +383,6 @@ plotPCA = function(data){
 	xrange = xrange + add
 	yrange = yrange + add
 
-	library(ggplot2)
-	library(grid)
 	sh = inputSaved$pcaShape
 	nColor = length(unique(x2$groupingColor)) #number of different groups for color
 	nShape = length(unique(x2$groupingShape)) #number of different groups for shape
@@ -471,8 +485,7 @@ plotHeatmap = function(data, filename = NA){
 	showRownames = toBoolean(inputSaved$hmShowRownames)
 	showColnames = toBoolean(inputSaved$hmShowColnames)
 	showAnnoTitles = toBoolean(inputSaved$hmShowAnnoTitles)
-	library(grid); source("/home/metsalu/Dokumendid/Ülikool/BIIT/Projektid/predect/homepage/gen/R/pheatmap.r")
-	matFinal = matImputed
+  matFinal = matImputed
 	if(!is.null(anno) && length(inputSaved$hmAnno) > 0){
 		if(!all(inputSaved$hmAnno %in% colnames(anno))) return(frame())
 		anno2 = anno[, inputSaved$hmAnno, drop = FALSE]
