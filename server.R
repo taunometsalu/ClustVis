@@ -26,9 +26,22 @@ shinyServer(function(input, output, session) {
 				}
 				if(!(fname %in% list.files(sessPathUsed))) return(NULL)
 				load(file = str_c(sessPathUsed, fname))
-				attach(data) #used in return as well: anno, mat, ...
-				inputLoaded = inputSaved
-				updatePcsAnnos(session, anno, mat, inputLoaded)
+        inputLoaded = data$inputSaved
+        mat = data$mat
+        sep = data$sep
+        if("annoCol" %in% names(data)){
+          annoCol = data$annoCol
+          annoRow = data$annoRow
+          nAnnoCol = data$nAnnoCol
+          nAnnoRow = data$nAnnoRow
+        } else { #backward compatibility
+          annoCol = data$anno
+          annoRow = NULL
+          nAnnoCol = data$n
+          nAnnoRow = 0
+        }
+				annoGroupsCol = data$annoGroupsCol
+				annoGroupsRow = data$annoGroupsRow
 				
 				#hardcoded manually - found no better way ...
 				updates = list(
@@ -36,22 +49,26 @@ shinyServer(function(input, output, session) {
 						"pcaPcx", "pcaPcy", "pcaColor", "pcaShape", "pcaEllipseLineType", "pcaLegendPosition", 
 						"hmClustDistRows", "hmClustDistCols", "hmClustMethodRows", "hmClustMethodCols", 
 						"hmTreeOrderingRows", "hmTreeOrderingCols", "hmColorScheme", "hmCellBorder"),
-					updateCheckboxGroupInput = c("procAnno", "procCentering", "pcaSwitchDir", 
-                                       "pcaAnnoColor", "pcaAnnoShape", 
-						"pcaShowSampleIds", "pcaShowEllipses", "hmAnno", "hmRevScheme", "hmShowNumbers", 
-						"hmShowRownames", "hmShowColnames", "hmShowAnnoTitles", 
+					updateCheckboxGroupInput = c(
+            "procAnno", "procCentering", "pcaSwitchDir", "pcaAnnoColor", "pcaAnnoShape", 
+            "pcaShowVariance", "pcaShowSampleIds", "pcaShowEllipses", 
+            "hmAnnoCol", "hmAnnoRow", "hmRevScheme", "hmShowNumbers", 
+						"hmShowRownames", "hmShowColnames", "hmShowAnnoTitlesCol", "hmShowAnnoTitlesRow", 
             "pcaChangeDataOptions", "pcaChangeDisplayOptions", "pcaChangeColorOptions",
-            "pcaChangeShapeOptions", "pcaChangeLabelOptions", "hmChangeClusteringOptions",
-            "hmChangeDisplayOptions", "hmChangeLabelOptions"),
+            "pcaChangeShapeOptions", "pcaChangeLabelOptions", "hmChangeDataOptions",
+            "hmChangeDisplayOptions", "hmChangeLabelOptions", 
+            "hmTransposeHeatmap", "hmShowImputed",
+            "pcaInteractivity", "hmInteractivity"),
 					updateRadioButtons = c(),
 					updateTabsetPanel = c(),
 					
 					updateCheckboxInput = c(),
-					updateNumericInput = c("pcaPlotRatio", "hmPlotRatio", "pcaEllipseConf", 
-            "hmColorRangeMax", "hmColorRangeMin"),
+					updateNumericInput = c("procMaxNaPercRows", "procMaxNaPercCols", 
+            "pcaPlotRatio", "pcaEllipseConf", "hmPlotRatio", 
+            "hmColorRangeMax", "hmColorRangeMin", "hmCutreeClustersRows", "hmCutreeClustersCols"),
 					updateSliderInput = c("pcaPointSize", "pcaPlotWidth", "pcaFontSize", "pcaEllipseLineWidth", 
-						"hmFontSizeNumbers", "hmPrecisionNumbers", "hmFontSizeRownames", "hmFontSizeColnames", 
-            "hmPlotWidth"), 
+					  "hmFontSizeGeneral", "hmFontSizeNumbers", "hmPrecisionNumbers", 
+            "hmFontSizeRownames", "hmFontSizeColnames", "hmPlotWidth"), 
 					updateTextInput = c("pcaAxisLabelPrefix"),
 					updateDateInput = c(),
 					
@@ -60,35 +77,43 @@ shinyServer(function(input, output, session) {
 				lens = sapply(updates, length)
 				updates2 = data.frame(fun = rep(names(updates), lens), id = unlist(updates))
 				
-				for(i in 1:nrow(updates2)){
-					fun = updates2$fun[i]
-					id = updates2$id[i]
-					val = inputLoaded[[id]]
-					
-					if(id %in% names(inputLoaded)){
-						if(fun == "updateCheckboxGroupInput" & is.null(val)) val = ""
-						if(fun %in% c("updateSelectInput", "updateCheckboxGroupInput", "updateRadioButtons", "updateTabsetPanel")){
-							get(fun)(session, id, selected = val)
-						} else if(fun %in% c("updateCheckboxInput", "updateNumericInput", "updateSliderInput", "updateTextInput", "updateDateInput")){
-							get(fun)(session, id, value = val)
-						} else if(fun %in% c("updateDateRangeInput")){
-							#not supported currently
-						}
-					}
-				}
+        isolate({
+          updateProcOptions(session, annoCol, annoGroupsCol)
+          updatePcaOptions(session, mat, inputLoaded)
+          updateHmOptions(session, mat, colnames(annoRow), inputLoaded$procAnno)
+          
+          for(i in 1:nrow(updates2)){
+            fun = updates2$fun[i]
+            id = updates2$id[i]
+            val = inputLoaded[[id]]
+            if(id %in% names(inputLoaded)){
+              if(fun == "updateCheckboxGroupInput" & is.null(val)) val = ""
+              if(fun %in% c("updateSelectInput", "updateCheckboxGroupInput", "updateRadioButtons", "updateTabsetPanel")){
+                get(fun)(session, id, selected = val)
+              } else if(fun %in% c("updateCheckboxInput", "updateNumericInput", "updateSliderInput", "updateTextInput", "updateDateInput")){
+                get(fun)(session, id, value = val)
+              } else if(fun %in% c("updateDateRangeInput")){
+                #not supported currently
+              }
+            }
+          }
+        })
 				
 				if(settingsLarge){
-					mat = filterRows(session, anno, mat, input, organism = "hsapiens")
+					mat = filterRows(session, mat, input, organism = "hsapiens", annoGroupsCol = annoGroupsCol)
 				}
-				return(list(anno = anno, mat = mat, n = n, sep = sep, inputSaved = input,
-				            annoLevsTab = NULL, message = NULL))
+        l = list(annoCol = annoCol, annoRow = annoRow, mat = mat, 
+                 nAnnoCol = nAnnoCol, nAnnoRow = nAnnoRow, sep = sep, 
+                 inputSaved = input, annoLevsTab = NULL, message = NULL, 
+                 annoGroupsCol = annoGroupsCol, annoGroupsRow = annoGroupsRow)
+				return(l)
 			} else {
 				return(NULL)
 			}
 		} else if(input$uploadDataInput == 5){
 			if(input$uploadPbDataset != ""){
 				ncFile = str_c(projectBrowserPath, input$uploadPbDataset, ".nc")
-				if(!file.exists(ncFile)) return(NULL) #when changing platform, initially old dataset remains active
+				if(!file.exists(ncFile)) return(NULL)
 				nc = open.nc(ncFile)
 				n = file.inq.nc(nc)$nvars #variable indices 0 .. n-1
 				vars = sapply(1:n, function(x) var.inq.nc(nc, x - 1)$name)
@@ -123,15 +148,22 @@ shinyServer(function(input, output, session) {
 					annoLevsTab = NULL
 					n = 0
 				}
-				#wOrg = which(vars %in% c("Organism"))[1]; org = unique(var.get.nc(nc, wOrg - 1))[1] #old
+        annoCol = anno
+				annoRow = NULL
+        nAnnoCol = n
+				nAnnoRow = 0
+        
 				org = input$uploadOrganism
         str = strsplit(org, " ")[[1]]
 				org2 = str_c(tolower(str_sub(str[1], 1, 1)), str[2])
 				close.nc(nc)
 				
-				mat = filterRows(session, anno, mat, input, organism = org2)
-				return(list(anno = anno, mat = mat, n = n, sep = ",", 
-                    inputSaved = input, annoLevsTab = annoLevsTab, message = NULL))
+        annoGroupsCol = annoGroupsRow = NULL
+				mat = filterRows(session, mat, input, organism = org2, annoGroupsCol = annoGroupsCol)
+				return(list(annoCol = annoCol, annoRow = annoRow, mat = mat, 
+				            nAnnoCol = nAnnoCol, nAnnoRow = nAnnoRow, sep = ",", 
+                    inputSaved = input, annoLevsTab = annoLevsTab, message = NULL,
+				            annoGroupsCol = annoGroupsCol, annoGroupsRow = annoGroupsRow))
 			} else {
 				return(NULL)
 			}
@@ -151,7 +183,8 @@ shinyServer(function(input, output, session) {
 		}
 		
 		readText = function(f, sep){
-			read.table(f, sep = sep, header = TRUE, fill = TRUE, colClasses = "character", check.names = FALSE)
+			read.table(f, sep = sep, header = TRUE, fill = TRUE, colClasses = "character", 
+                 check.names = FALSE, comment.char = "")
 		}
 		safeRead = failwith(NULL, readText, quiet = TRUE)
 		message = NULL
@@ -173,85 +206,135 @@ shinyServer(function(input, output, session) {
       rownames(data) = rn
       colnames(data) = cn
     }
-    #message = str_c(message, "abc")
 		if(is.null(data) || nrow(data) < 1 || ncol(data) < 1) return(NULL)
 		data2 = apply(data, 1:2, function(x) gsub(",", ".", x))
 		data2[is.na(data2)] = ""
-		
+    
 		#guess border between annotations and numeric data:
-		if(gAnno || !is.numeric(input$uploadNbrAnnoRows) || input$uploadNbrAnnoRows < 0 || input$uploadNbrAnnoRows >= nrow(data)){
-			rowsNumeric = apply(data2, 1, function(x) all.is.numeric(x))
-			#http://stackoverflow.com/questions/3476782/how-to-check-if-the-number-is-integer
-			rowsInteger = apply(data2[rowsNumeric, , drop = FALSE], 1, 
-				function(x) isTRUE(all.equal(as.numeric(x), as.integer(x), check.attributes = FALSE)))
-			double = which(rowsNumeric)[!rowsInteger] #non-integers
-			wNum = which(!rowsNumeric)
-			if(length(double) > 0){ #educated guess based on non-integers
-				if(length(wNum) > 0){
-					double = double[double > max(wNum)] #remove those that are before any non-numeric row
-				}
-				n = min(double) - 1
-			} else { #educated guess based on all numeric values
-				if(length(wNum) > 0){
-					n = max(wNum)
-				} else {
-					n = 0
-				}
-			}
+		if(gAnno || !is.numeric(input$uploadNbrColAnnos) || input$uploadNbrColAnnos < 0 || input$uploadNbrColAnnos >= nrow(data)){
+		  data2num = data2; suppressWarnings(class(data2num) <- "numeric")
+		  numericCells = !is.na(data2num) | (data2 == "")
+		  numericRows = rowSums(numericCells)
+		  numericCols = colSums(numericCells)
+		  nAnnoRow = max(c(0, which(numericCols < numericCols[ncol(data2)])))
+		  nAnnoCol = max(c(0, which(numericRows < numericRows[nrow(data2)])))
+		  if((nAnnoCol < nrow(data)) & (nAnnoRow < ncol(data))){
+		    data3 = data2[(nAnnoCol + 1):nrow(data2), (nAnnoRow + 1):ncol(data2), drop = FALSE]
+		    data3int = data3; suppressWarnings(class(data3int) <- "integer")
+		    data3num = data3; suppressWarnings(class(data3num) <- "numeric")
+		    intCells = !is.na(data3num) & ((data3int - round(data3num, 10)) == 0)
+		    if(!all(intCells)){
+		      intRowLast = as.vector(intCells[nrow(intCells), ])
+		      nAnnoRow = nAnnoRow + which(!intRowLast)[1] - 1
+		      intColLast = as.vector(intCells[, ncol(intCells)])
+		      nAnnoCol = nAnnoCol + which(!intColLast)[1] - 1
+		    }
+		  }
 		} else {
-			n = input$uploadNbrAnnoRows
+		  nAnnoCol = input$uploadNbrColAnnos
+		  nAnnoRow = input$uploadNbrRowAnnos
 		}
-		if(n == 0){
-			anno = NULL
+		if(nAnnoCol == 0){
+			annoCol = NULL
 		} else {
-			anno = as.data.frame(t(data[1:n, , drop = FALSE]))
-			anno[is.na(anno)] = "NA" #to make filtering and heatmap annotations work correctly
+		  annoCol = as.data.frame(t(data[1:nAnnoCol, (nAnnoRow + 1):ncol(data), drop = FALSE]))
+		  annoCol[is.na(annoCol)] = "NA" #to make filtering and heatmap annotations work correctly
 		}
-		if(n == nrow(data)){
+    if(nAnnoRow == 0){
+		  annoRow = NULL
+		} else {
+			annoRow = as.data.frame(data[(nAnnoCol + 1):nrow(data), 1:nAnnoRow, drop = FALSE])
+	    annoRow[is.na(annoRow)] = "NA"
+		}
+		if(nAnnoCol == nrow(data) | nAnnoRow == ncol(data)){
 			mat = NULL
 		} else {
-			mat = data2[(n + 1):nrow(data2), , drop = FALSE]
+			mat = data2[(nAnnoCol + 1):nrow(data2), (nAnnoRow + 1):ncol(data2), drop = FALSE]
 			mat = apply(mat, 1:2, as.numeric)
 		}
-		updatePcsAnnos(session, anno, mat, input)
-		return(list(anno = anno, mat = mat, n = n, sep = sep, inputSaved = input, 
-                annoLevsTab = NULL, message = message))
+		annoGroupsCol = annoGroupsRow = NULL
+		return(list(annoCol = annoCol, annoRow = annoRow, mat = mat, 
+                nAnnoCol = nAnnoCol, nAnnoRow = nAnnoRow, sep = sep, 
+                inputSaved = input, annoLevsTab = NULL, message = message,
+		            annoGroupsCol = annoGroupsCol, annoGroupsRow = annoGroupsRow))
 	})
+  
+  setAnnoGroups = reactive({
+    data = readData()
+    if(is.null(data)) return(NULL)
+    
+    #set default annotation groups:
+    if(is.null(data$annoGroupsCol)){
+      if(!is.null(data$annoCol)){
+        cn = colnames(data$annoCol)
+      } else {
+        cn = fakeAnno
+      }
+      data$annoGroupsCol = list()
+      data$annoGroupsCol[[allAnno]] = cn
+    }
+    if(is.null(data$annoGroupsRow)){
+      if(!is.null(data$annoRow)){
+        cn = colnames(data$annoRow)
+      } else {
+        cn = fakeAnno
+      }
+      data$annoGroupsRow = list()
+      data$annoGroupsRow[[allAnno]] = cn
+    }
+    values$newData = TRUE
+    data
+  })
 
-	#filter columns
-	filterColumns = reactive({
-		data = readData()
+	#filter columns and rows based on annotations
+	filterColumnsRows = reactive({
+    data = setAnnoGroups()
+    if(is.null(data)) return(NULL)
     
-		#missing values:
-		#http://stackoverflow.com/questions/20669150/exclude-row-names-from-r-shiny-rendertable
-		if(!is.null(data$mat)){
-		  data$naRows = findNAs(data$mat, 1)
-		  data$naCols = findNAs(data$mat, 2)
-      data$naRowsAll = names(data$naRows[data$naRows == ncol(data$mat)])
-      data$naColsAll = names(data$naCols[data$naCols == nrow(data$mat)])
-		  wr = which(!(rownames(data$mat) %in% data$naRowsAll))
-		  wc = which(!(colnames(data$mat) %in% data$naColsAll))
-		  data$mat = data$mat[wr, wc, drop = FALSE]
-		  data$anno = data$anno[wc, , drop = FALSE]
-		}
-    
-		if(!is.null(data$anno)){
-			w = findRetainedColumns(data$anno, data$inputSaved)
-			if(length(w) > 0){
-				data$anno = data$anno[w, , drop = FALSE]
-				data$mat = data$mat[, w, drop = FALSE]
-			} else {
-				data$anno = data$mat = NULL
-			}
+		wc = findRetainedAfterFiltering(data$annoCol, data$inputSaved, "Column", data$mat)
+		wr = findRetainedAfterFiltering(data$annoRow, data$inputSaved, "Row", data$mat)
+		if(length(wc) > 0){
+		  data$annoCol = data$annoCol[wc, , drop = FALSE]
+      if(length(wr) > 0){
+        data$annoRow = data$annoRow[wr, , drop = FALSE]
+        data$mat = data$mat[wr, wc, drop = FALSE]
+      } else {
+        data$annoRow = data$mat = NULL
+      }
+		} else {
+		  data$annoCol = data$mat = NULL
+		  if(length(wr) > 0){
+		    data$annoRow = data$annoRow[wr, , drop = FALSE]
+		  } else {
+		    data$annoRow = NULL
+		  }
 		}
     
     if(toBoolean(data$inputSaved$uploadMatrixTranspose)){
       if(!is.null(data$mat)){
         data$mat = t(data$mat)
       }
-      data$anno = NULL
-      updatePcsAnnos(session, data$anno, data$mat, data$inputSaved)
+      
+      #switch annotations
+      #avoid assigining NULL to list: it removes the element!
+      #http://stackoverflow.com/questions/7944809/assigning-null-to-a-list-element-in-r
+      temp = data$annoCol
+      data['annoCol'] = list(data$annoRow)
+      data['annoRow'] = list(temp)
+      
+      temp = data$annoGroupsCol
+      data['annoGroupsCol'] = list(data$annoGroupsRow)
+      data['annoGroupsRow'] = list(temp)
+      
+      temp = data$nAnnoCol
+      data$nAnnoCol = data$nAnnoRow
+      data$nAnnoRow = temp
     }
+    
+    isolate({
+      updateProcOptions(session, data$annoCol, data$annoGroupsCol)
+    })
+    values$newData = FALSE
     
 		data
 	})
@@ -259,7 +342,29 @@ shinyServer(function(input, output, session) {
 	#http://stackoverflow.com/questions/18816666/shiny-change-data-input-of-buttons
 	values = reactiveValues()
 	observe({
-		values$data = filterColumns()
+		values$data = filterColumnsRows()
+	})
+  
+  #http://stackoverflow.com/questions/26432789/can-i-save-the-old-value-of-a-reactive-object-when-it-changes
+	session$onFlush(once = FALSE, function(){
+	  isolate({
+	    #hide all previous tooltips
+	    session$sendCustomMessage(type = 'hideTooltips', message = list())
+      values$procAnnoGroupsOld = input$procAnnoGroups
+      values$annoGroupsColOld = values$data$annoGroupsCol
+      values$annoGroupsRowOld = values$data$annoGroupsRow
+    })
+	})
+  
+  #renew tooltips after page flush
+	session$onFlushed(once = FALSE, function(){
+	  isolate({
+      if(!is.null(values$data)){
+        #https://github.com/daattali/shinyjs/issues/39
+        session$sendCustomMessage(type = 'activateTooltips', message = list())
+        session$sendCustomMessage(type = 'addHandlers', message = list())
+      }
+	  })
 	})
 	
 	#initial data
@@ -267,20 +372,35 @@ shinyServer(function(input, output, session) {
 		values$data$annoLevsTab
 	})
 
-	output$uploadAnnoInfo = renderPrint({
-		if(is.null(values$data$anno)){
+	output$uploadAnnoColInfo = renderPrint({
+		if(is.null(values$data$annoCol)){
 			ns = c(0, 0)
 		} else {
-			ns = rev(dim(values$data$anno))
+			ns = rev(dim(values$data$annoCol))
 		}
 		plurals = ifelse(ns != 1, "s", "")
-		p(str_c("Annotations (", ns[1], " row", plurals[1], ", ", ns[2], " column", plurals[2], "):"))
+		p(str_c("Column annotations (", ns[1], " row", plurals[1], ", ", ns[2], " column", plurals[2], "):"))
 	})
 	
-	output$uploadAnnoTable = renderTable({
-		if(is.null(values$data$anno)) return(NULL)
-		cutMatrix(t(values$data$anno))
+	output$uploadAnnoColTable = renderTable({
+		if(is.null(values$data$annoCol)) return(NULL)
+		cutMatrix(t(values$data$annoCol))
 	})
+  
+  output$uploadAnnoRowInfo = renderPrint({
+    if(is.null(values$data$annoRow)){
+      ns = c(0, 0)
+    } else {
+      ns = dim(values$data$annoRow)
+    }
+    plurals = ifelse(ns != 1, "s", "")
+    p(str_c("Row annotations (", ns[1], " row", plurals[1], ", ", ns[2], " column", plurals[2], "):"))
+  })
+
+  output$uploadAnnoRowTable = renderTable({
+    if(is.null(values$data$annoRow)) return(NULL)
+    cutMatrix(values$data$annoRow)
+  })  
 	
 	output$uploadDataInfo = renderPrint({
 		if(is.null(values$data$mat)){
@@ -296,32 +416,6 @@ shinyServer(function(input, output, session) {
 		cutMatrix(values$data$mat)
 	})
   
-	output$uploadNAsRows = renderTable({
-	  if(!is.null(values$data$mat)){
-      gp = values$data$naRows
-	    validate(
-	      need(!is.null(gp), "No NAs in rows.")
-	    )
-	    return(cutMatrix(rbind(gp), digits = 0))
-	  } else {
-	    #return(data.frame(All = 0L))
-      return(NULL)
-	  }
-	}, include.rownames = FALSE)
-	
-	output$uploadNAsCols = renderTable({
-	  if(!is.null(values$data$mat)){
-	    gp = values$data$naCols
-	    validate(
-	      need(!is.null(gp), "No NAs in columns.")
-      )
-	    return(cutMatrix(rbind(gp), digits = 0))
-	  } else {
-	    #return(data.frame(All = 0L))
-      return(NULL)
-	  }
-	}, include.rownames = FALSE)
-	
   output$uploadWarnings = renderText({
     missing = c(input$uploadPbDataset == "", input$uploadPbPathway == "")
     words = c("a dataset", "a pathway (or change row filtering type)")
@@ -330,38 +424,119 @@ shinyServer(function(input, output, session) {
       need(is.null(values$data$message), values$data$message),
       need(!(input$uploadDataInput == 2 & is.null(input$uploadFile)), "Please choose a file to upload!"),
       need(!(input$uploadDataInput == 3 & (is.null(input$uploadCopyPaste) || input$uploadCopyPaste == "")), "Please copy your data to the text box on the left!"),
-      need(!(input$uploadDataInput == 5 & input$uploadRowFiltering == 1 & 
-          (input$uploadPbDataset == "" | input$uploadPbPathway == "")), 
+      need(!(input$uploadDataInput == 5 & input$uploadRowFiltering == 1 & (missing[1] | missing[2])), 
           str_c("Please choose ", warnWords, "!")),
-      need(!(input$uploadDataInput == 5 & input$uploadRowFiltering != 1 & 
-          input$uploadPbDataset == ""), "Please choose a dataset!"),
-      need(!(input$uploadDataInput %in% c(4, 6) & 
-               input$uploadSettingsId == ""), "No settings ID found!")
+      need(!(input$uploadDataInput == 5 & input$uploadRowFiltering != 1 & missing[1]), "Please choose a dataset!"),
+      need(!(input$uploadDataInput %in% c(4, 6) & input$uploadSettingsId == ""), "No settings ID found!")
     )
     validate(
       need(!is.null(values$data$mat), "No numeric data found, you can visit 'Help' tab for instructions about data format!")
     )
-    if(!is.null(values$data$mat)){
-      nar = values$data$naRowsAll
-      nac = values$data$naColsAll
-      sd0r = findSD0(values$data$mat, 1)
-      sd0c = findSD0(values$data$mat, 2)
-      validate(
-        need(length(nar) == 0, str_c("The following rows had all missing values and were removed: ", str_c(nar, collapse = ", "))),
-        need(length(nac) == 0, str_c("The following columns had all missing values and were removed: ", str_c(nac, collapse = ", "))),
-        need(length(sd0r) == 0, str_c("The following rows are constant and may cause problems with some clustering distances (e.g. correlation): ", str_c(sd0r, collapse = ", "))),
-        need(length(sd0c) == 0, str_c("The following columns are constant and may cause problems with some clustering distances (e.g. correlation): ", str_c(sd0c, collapse = ", ")))
-      )
-    } else {
-      return(NULL)
-    }
   })
-	
+  
 	#pre-processing
 	getProc = reactive({
 	  proc = dataProcess(data = values$data)
-    updateNbrs(session, proc$matImputed)
+	  isolate({
+      updatePcaOptions(session, proc$matImputed, proc$inputSaved)
+      session$sendCustomMessage(type = 'sendEmpty', message = list()) #reset clicked object
+    })
     proc
+	})
+  
+	output$procWarnings = renderText({
+	  proc = getProc()
+	  validate(
+	    need(!is.null(proc), "No data found, please check processing options or revisit 'Data upload' tab!")
+	  )
+	  if(!is.null(proc$mat)){
+	    sd0r = proc$constRows
+	    sd0c = proc$constCols
+      sd0rString = str_c(str_c(str_c("'", sd0r), "'"), collapse = ", ")
+	    sd0cString = str_c(str_c(str_c("'", sd0c), "'"), collapse = ", ")
+      sd0rWarning = str_c("The following rows are constant and were removed: ", sd0rString, ".")
+      sd0cWarning = ifelse(toBoolean(proc$inputSaved$procRemConstCols),
+        str_c("The following columns are constant and were removed: ", sd0cString, "."),
+        str_c("The following columns are constant and may cause problems with some clustering distances (e.g. correlation), you can remove them by checking 'remove constant columns': ", sd0cString, ".")
+      )
+	    validate(
+	      need(length(sd0r) == 0, sd0rWarning),
+	      need(length(sd0c) == 0, sd0cWarning)
+	    )
+	  } else {
+	    return(NULL)
+	  }
+	})
+  
+	output$pcaWarnings = renderText({
+	  proc = getProc()
+	  if(!is.null(proc$matPca)){
+	    validate(
+	      need(!toBoolean(proc$inputSaved$pcaInteractivity) || (nrow(proc$matPca) <= maxTooltipsPCA), 
+             str_c("More than ", maxTooltipsPCA, " points, showing static plot for performance reasons (no interactivity)."))
+	    )
+	  } else {
+	    return(NULL)
+	  }
+	})
+  
+	output$hmWarnings = renderText({
+	  if(!is.null(getProc())){
+	    transp = getTransposed()
+	    if(!is.null(transp$matFinal)){
+	      validate(
+	        need(!toBoolean(transp$inputSaved$hmInteractivity) || (sum(dim(transp$matFinal)) <= maxTooltipsHm), 
+            str_c("The total number of rows and columns is more than ", maxTooltipsHm, ", showing static plot for performance reasons (no interactivity)."))
+        )
+        validate(
+          need(!toBoolean(transp$inputSaved$hmInteractivity) || (sum(dim(transp$matFinal)) + prod(dim(transp$matFinal)) <= maxTooltipsHm), 
+            str_c("The total number of tooltips would be more than ", maxTooltipsHm, ", keeping the tooltips only for row and column labels (not for each cell)."))
+        )
+	    } else {
+	      return(NULL)
+	    }
+	  } else {
+      return(NULL)
+    }
+	})
+  
+  output$hmRcWarnings = output$pcaRcWarnings = renderText({
+    grc = getRowColPlot()
+    if(is.null(grc)) return(NULL)
+    validate(
+      need(nrow(grc$points) <= maxTooltipsRCplot, 
+           str_c("More than ", maxTooltipsRCplot, " points, showing static plot for performance reasons (no interactivity)."))
+    )
+  })
+	
+	output$procSizeTable = renderTable({
+	  getProc()$sizeTable
+	})
+  
+	output$procNAsRows = renderTable({
+	  proc = getProc()
+	  if(!is.null(proc$mat)){
+	    gp = proc$naTableRows
+	    validate(
+	      need(!is.null(gp), "No NAs in rows.")
+	    )
+	    return(cutMatrix(gp, digits = 0))
+	  } else {
+	    return(NULL)
+	  }
+	})
+	
+	output$procNAsCols = renderTable({
+	  proc = getProc()
+	  if(!is.null(proc$mat)){
+	    gp = proc$naTableCols
+	    validate(
+	      need(!is.null(gp), "No NAs in columns.")
+	    )
+	    return(cutMatrix(gp, digits = 0))
+	  } else {
+	    return(NULL)
+	  }
 	})
 	
 	output$procPcaVarInfo = renderPrint({
@@ -372,7 +547,7 @@ shinyServer(function(input, output, session) {
 			ns = ncol(vt)
 		}
 		plurals = ifelse(ns != 1, "s", "")
-		p(str_c("Variance explained (", ns, " component", plurals, "):"))
+		p(str_c("Variance explained by principal components (", ns, " component", plurals, "):"))
 	})
 	
 	output$procPcaVarTable = renderTable({
@@ -412,47 +587,291 @@ shinyServer(function(input, output, session) {
 	#PCA
 	getPCA = reactive({
 		data = getProc()
-		#http://shiny.rstudio.com/articles/validation.html
 		validate(
 			need(!is.null(data), "No data found, please revisit 'Data upload' tab!")
 		)
-		plotPCA(data)
+    plot = plotPCA(data)
+		validate(
+		  need(is.null(plot$message), plot$message)
+		)
+		plot
 	})
 	
-	output$pca = renderPlot({
-		print(getPCA()[[1]])
-	}, height = function() getPCA()[[2]], width = function() getPCA()[[3]])
+	output$pcaStatic = renderPlot({
+		print(getPCA()$q)
+	}, height = function() getPCA()$pich, width = function() getPCA()$picw)
 	
-	
+  output$pca = renderUI({
+    gp = getPCA()
+    if(is.null(gp)) return(NULL)
+    proc = getProc()
+    if(toBoolean(proc$inputSaved$pcaInteractivity) && (nrow(proc$matPca) <= maxTooltipsPCA)){
+      outfile = tempfile(pattern = "Rplots_", fileext = '.png', tmpdir = sessPath)
+      dev.new(file = outfile, width = gp$picwIn, height = gp$pichIn)
+      print(gp$q)
+      grid.force() #suggested by Paul Murrell
+      names = grid.ls(print = FALSE)$name
+      grobPts = names[searchPrefix("geom_point", names)]
+      
+      titles = getTooltipTitles(mapping = proc$mappingCol, names = colnames(proc$mat))
+      tooltips = getTooltipTexts(anno = proc$annoCol, titles = titles)
+      
+      if(hasAnno(proc$annoCol, "plot_link")){
+        prefix = "link"
+        grid.hyperlink(grobPts, href = proc$annoCol$plot_link, show = "new", group = FALSE)
+      } else {
+        prefix = "pcaCol"
+      }
+      
+      grid.garnish(grobPts, `data-toggle` = rep("tooltip", length(tooltips)), title = tooltips, 
+                   class = rep(prefix, length(tooltips)), 
+                   id = str_c(str_c(prefix, "-"), 1:length(tooltips)), group = FALSE)
+
+      svg = grid.export(NULL, strict = FALSE, indent = FALSE, annotate = FALSE)$svg
+      dev.off(); unlink(outfile)
+      res = HTML(toString.XMLNode(svg))
+    } else {
+      res = plotOutput("pcaStatic", height = "100%", width = "100%")
+    }
+    res
+  })
+  
 	#heatmap
-	getClust = reactive({
-		data = getProc()
-		validate(
-			need(!is.null(data), "No data found, please revisit 'Data upload' tab!"),
-			need(nrow(data$mat) <= maxDimensionHeatmap, str_c("Data matrices with more than ", maxDimensionHeatmap, 
+  getTransposed = reactive({
+    data = getProc()
+    validate(
+      need(!is.null(data), "No data found, please revisit 'Data upload' tab!")
+    )
+    validate(
+      need(nrow(data$matImputed) <= maxDimensionHeatmap, 
+        str_c("Data matrices with more than ", maxDimensionHeatmap, 
         " rows are currently not supported, please revisit 'Data upload' tab and change row filtering options or upload a smaller file!")),
-			need(ncol(data$mat) <= maxDimensionHeatmap, str_c("Data matrices with more than ", maxDimensionHeatmap, 
+      need(ncol(data$matImputed) <= maxDimensionHeatmap, 
+        str_c("Data matrices with more than ", maxDimensionHeatmap,
         " columns are currently not supported, please revisit 'Data upload' tab and filter some columns or collapse columns with similar annotations on 'Data pre-processing' tab or upload a smaller file!"))
-		)
-		data$hcRows = calcClustering(data$matImputed, data$inputSaved$hmClustDistRows, 
+    )
+    inputSaved = data$inputSaved
+    matImputed = data$matImputed
+    if(toBoolean(inputSaved$hmShowImputed)){
+      matFinal = matImputed
+    } else {
+      matFinal = data$mat
+    }
+    annoCol = data$annoCol
+    annoRow = data$annoRow
+    cnr = colnames(annoRow)
+    if(all(cnr %in% interactivityAnnos)){
+      cnr = NULL
+    } else {
+      cnr = cnr[!(cnr %in% interactivityAnnos)]
+    }
+    cnc = inputSaved$procAnno
+    mappingRow = data$mappingRow
+    mappingCol = data$mappingCol
+    if(toBoolean(inputSaved$hmTransposeHeatmap)){
+      if(!is.null(matImputed)){
+        matImputed = t(matImputed)
+        matFinal = t(matFinal)
+      }
+      temp = annoCol
+      annoCol = annoRow
+      annoRow = temp
+      
+      temp = cnc
+      cnc = cnr
+      cnr = temp
+      
+      temp = mappingCol
+      mappingCol = mappingRow
+      mappingRow = temp
+    }
+    isolate(updateHmOptions(session, matFinal, cnr, cnc))
+    list(matFinal = matFinal, matImputed = matImputed, annoCol = annoCol, 
+         annoRow = annoRow, inputSaved = inputSaved, 
+         mappingCol = mappingCol, mappingRow = mappingRow)
+  })
+  
+	getClust = reactive({
+		data = getTransposed()
+		data$hcRows = calcOrdering(data$matImputed, data$inputSaved$hmClustDistRows, 
       data$inputSaved$hmClustMethodRows, data$inputSaved$hmTreeOrderingRows)
-		data$hcCols = calcClustering(t(data$matImputed), data$inputSaved$hmClustDistCols, 
-      data$inputSaved$hmClustMethodCols, data$inputSaved$hmTreeOrderingCols)
+		data$hcCols = calcOrdering(t(data$matImputed), data$inputSaved$hmClustDistCols, 
+		  data$inputSaved$hmClustMethodCols, data$inputSaved$hmTreeOrderingCols)
+		validate(
+		  need(is.na(data$hcRows) | (class(data$hcRows) == "hclust"), 
+           ifelse(class(data$hcRows) == "hclust", NA, str_c("In rows, ", data$hcRows))),
+		  need(is.na(data$hcCols) | (class(data$hcCols) == "hclust"), 
+		       ifelse(class(data$hcCols) == "hclust", NA, str_c("In columns, ", data$hcCols)))
+		)
 		data
 	})
 	
 	getHeatmap = reactive({
-		data = getClust()
-		plotHeatmap(data)
+	  data = getClust()
+	  plotHeatmap(data)
 	})
-	
+  
 	#http://shiny.rstudio.com/articles/images.html
-	output$heatmap = renderImage({
-		outfile = tempfile(fileext = '.png', tmpdir = sessPath)
-		gh = plotHeatmap(data = getClust(), filename = outfile)
+	output$heatmapStatic = renderImage({
+	  outfile = tempfile(fileext = '.png', tmpdir = sessPath)
+		png(outfile, units = "in", res = 300, width = input$hmPlotWidth / 2.54, 
+        height = input$hmPlotRatio * input$hmPlotWidth / 2.54)
+		gh = getHeatmap()
+		validate(
+		  need(is.null(gh$message), gh$message)
+		)
+		if(!is.null(gh)){
+      grid.newpage()
+      grid.draw(gh$ph$gtable)
+		}
+    dev.off()
     list(src = outfile, contentType = 'image/png', width = gh$picw, height = gh$pich)
 	}, deleteFile = TRUE)
-	
+  
+	output$heatmap = renderUI({
+	  gh = getHeatmap()
+	  if(is.null(gh)) return(NULL)
+    transp = getTransposed()
+	  if(toBoolean(transp$inputSaved$hmInteractivity) && (sum(dim(transp$matFinal)) <= maxTooltipsHm)){
+	    outfile = tempfile(pattern = "Rplots_", fileext = '.pdf', tmpdir = sessPath)
+	    dev.new(file = outfile, width = gh$picwIn, height = gh$pichIn)
+	    grid.newpage()
+	    grid.draw(gh$ph$gtable)
+	    grid.force() #suggested by Paul Murrell
+	    names = grid.ls(print = FALSE)$name
+	    
+	    titlesRows = getTooltipTitles(mapping = transp$mappingRow, names = rownames(transp$matFinal), rows = TRUE)
+	    titlesCols = getTooltipTitles(mapping = transp$mappingCol, names = colnames(transp$matFinal))
+      if(!is.na(gh$ph$tree_row)){
+        rnOrder = gh$ph$tree_row$order
+      } else {
+        rnOrder = 1:nrow(transp$matFinal)
+      }
+	    if(!is.na(gh$ph$tree_col)){
+	      cnOrder = gh$ph$tree_col$order
+	    } else {
+	      cnOrder = 1:ncol(transp$matFinal)
+	    }
+      annoRowOrdered = transp$annoRow[rnOrder, , drop = FALSE]
+      annoColOrdered = transp$annoCol[cnOrder, , drop = FALSE]
+	    titlesRowsOrdered = titlesRows[rnOrder]
+	    titlesColsOrdered = titlesCols[cnOrder]
+	    tooltipsRows = getTooltipTexts(anno = annoRowOrdered, titles = titlesRowsOrdered)
+	    tooltipsCols = getTooltipTexts(anno = annoColOrdered, titles = titlesColsOrdered)
+	    tooltipsTable = expand.grid(tooltipsRows, tooltipsCols, stringsAsFactors = FALSE)
+	    tooltips = str_c(str_c(tooltipsTable[, 1], "<br /><br />"), tooltipsTable[, 2])
+      cellIdsTable = expand.grid(1:length(tooltipsRows), 1:length(tooltipsCols), stringsAsFactors = FALSE)
+      cellIds = str_c(str_c(cellIdsTable[, 1], "-"), cellIdsTable[, 2])
+      
+	    grobCells = names[searchPrefix("matrix", names)]
+	    grobCellsSub = childNames(grid.get(grobCells)) #one more layer in between
+	    grobRows = names[searchPrefix("row_names", names)]
+	    grobCols = names[searchPrefix("col_names", names)]
+      
+	    grid.garnish(grobRows, `data-toggle` = rep("tooltip", length(tooltipsRows)), title = tooltipsRows, 
+	                 class = rep("hmRow", length(tooltipsRows)), 
+	                 id = str_c("hmRow-", 1:length(tooltipsRows)), group = FALSE)
+	    grid.garnish(grobCols, `data-toggle` = rep("tooltip", length(tooltipsCols)), title = tooltipsCols, 
+	                 class = rep("hmCol", length(tooltipsCols)), 
+	                 id = str_c("hmCol-", 1:length(tooltipsCols)), group = FALSE)
+      if((sum(dim(transp$matFinal)) + prod(dim(transp$matFinal)) <= maxTooltipsHm)){
+        grid.garnish(grobCellsSub, `data-toggle` = rep("tooltip", length(tooltips)), title = tooltips, 
+                     class = rep("hmCell", length(tooltips)), 
+                     id = str_c("hmCell-", cellIds), group = FALSE)
+      }
+
+	    svg = grid.export(NULL, strict = FALSE, indent = FALSE, annotate = FALSE)$svg
+	    dev.off(); unlink(outfile)
+	    res = HTML(toString.XMLNode(svg))
+	  } else {
+	    res = imageOutput("heatmapStatic", height = "100%", width = "100%")
+	  }
+    res
+	})
+
+	getRowColPlot = reactive({
+	  plotRowCol(getClust(), values$data$mat)
+	})
+  
+	output$hmRowColPlotStatic = output$pcaRowColPlotStatic = renderPlot({
+	  print(getRowColPlot()$q)
+	}, height = function() getRowColPlot()$pich, width = function() getRowColPlot()$picw)
+  
+	output$hmRowColPlot = output$pcaRowColPlot = renderUI({
+	  grc = getRowColPlot()
+	  if(is.null(grc)) return(NULL)
+	  points = grc$points
+	  if(nrow(points) <= maxTooltipsRCplot){
+	    original = values$data$mat
+	    annoRow = values$data$annoRow
+	    annoCol = values$data$annoCol
+	    
+	    inputSaved = values$data$inputSaved
+	    
+	    if(all(points$rn %in% colnames(original)) && all(points$cn %in% rownames(original))){
+	      rn = points$cn
+	      cn = points$rn
+	    } else if(all(points$rn %in% rownames(original)) && all(points$cn %in% colnames(original))){
+	      rn = points$rn
+	      cn = points$cn
+	    } else {
+	      return(NULL)
+	    }
+	    
+	    if(!is.null(annoRow)){
+	      annoRowSub = annoRow[match(rn, rownames(annoRow)), , drop = FALSE]
+	    } else {
+	      annoRowSub = NULL
+	    }
+	    if(!is.null(annoCol)){
+	      keep = c(inputSaved$procAnno, intersect(colnames(annoCol), interactivityAnnos))
+	      if(length(keep) > 0){
+	        annoColSub = annoCol[match(cn, rownames(annoCol)), keep, drop = FALSE]
+	      } else {
+	        annoColSub = NULL
+	      }
+	    } else {
+	      annoColSub = NULL
+	    }
+	    
+	    outfile = tempfile(pattern = "Rplots_", fileext = '.pdf', tmpdir = sessPath)
+	    dev.new(file = outfile, width = grc$picwIn, height = grc$pichIn)
+	    print(grc$q)
+	    grid.force()
+	    names = grid.ls(print = FALSE)$name
+	    grobPts = names[searchPrefix("geom_jitter", names)]
+	    
+	    titlesRows = getTooltipTitles(mapping = NULL, names = rn, rows = TRUE)
+	    tooltipsRows = getTooltipTexts(anno = annoRowSub, titles = titlesRows)
+	    titlesCols = getTooltipTitles(mapping = NULL, names = cn)
+	    tooltipsCols = getTooltipTexts(anno = annoColSub, titles = titlesCols)
+	    tooltips = str_c(str_c(tooltipsRows, "<br /><br />"), tooltipsCols)
+	    
+	    #check column link in the first place, then row link:
+	    if(hasAnno(annoColSub, "plot_link")){
+        prefix = "link"
+	      grid.hyperlink(grobPts, href = annoColSub$plot_link, show = "new", group = FALSE)
+	    } else if(hasAnno(annoRowSub, "plot_link")){
+	      prefix = "link"
+	      grid.hyperlink(grobPts, href = annoRowSub$plot_link, show = "new", group = FALSE)
+	    } else {
+	      prefix = "nolink"
+	    }
+      
+	    grid.garnish(grobPts, `data-toggle` = rep("tooltip", length(tooltips)), title = tooltips, 
+	                 class = rep(prefix, length(tooltips)), 
+	                 id = str_c(str_c(prefix, "-"), 1:length(tooltips)),
+	                 group = FALSE)
+	    
+	    svg = grid.export(NULL, strict = FALSE, indent = FALSE, annotate = FALSE)$svg
+	    dev.off(); unlink(outfile)
+	    res = HTML(toString.XMLNode(svg))
+	  } else {
+	    res = imageOutput(str_c(grc$plotType, "RowColPlotStatic"), height = "100%", width = "100%")
+	  }
+    res
+	})
+  
 	#export
 	output$exportSaveSettingsText = renderPrint({
 		data = values$data
@@ -476,11 +895,7 @@ shinyServer(function(input, output, session) {
 					} else {
 						port = str_c(":", sess$url_port)
 					}
-					if(sess$url_search %in% c("", "?")){
-						getpar = "?"
-					} else {
-						getpar = str_c(sess$url_search, "&")
-					}
+          getpar = "?" #avoid double "s=..." if saved settings are saved once more
 					link = str_c(sess$url_protocol, "//", sess$url_hostname, port, 
 						sess$url_pathname, getpar, "s=", sessId)
 					text = p("Your settings are now saved and can be re-loaded by visiting ", 
@@ -512,7 +927,19 @@ shinyServer(function(input, output, session) {
 	output$exportDownloadInitialData = downloadHandler(
 	  filename = function() { str_c(toolname, "InitialData.csv") },
 	  content = function(file) {
-	    d = rbind(t(values$data$anno), values$data$mat)
+      if(is.null(values$data$annoCol) & is.null(values$data$annoRow)){
+        d = values$data$mat
+      } else if(is.null(values$data$annoRow)){
+        d = rbind(t(values$data$annoCol), values$data$mat)
+      } else if(is.null(values$data$annoCol)){
+        d = cbind(values$data$annoRow, values$data$mat)
+      } else {
+        emptyMat = matrix("", ncol(values$data$annoCol), ncol(values$data$annoRow))
+        rownames(emptyMat) = colnames(values$data$annoCol)
+        colnames(emptyMat) = colnames(values$data$annoRow)
+        d = cbind(rbind(emptyMat, values$data$annoRow), 
+                  rbind(t(values$data$annoCol), values$data$mat))
+      }
 	    writeOutput(d, file)
 	  }
 	)
@@ -545,27 +972,85 @@ shinyServer(function(input, output, session) {
 	  filename = function() { str_c(toolname, "PCAvartable.csv") },
 	  content = function(file) {
 	    d = getProc()$varTable
+	    writeOutput(d, file)
 	  }
+	)
+	
+	output$exportDownloadPdfPCA = output$exportDownloadPdfHeatmap = downloadHandler(
+	  filename = function() { str_c(toolname, input$tabs1, ".pdf") },
+	  content = function(file) {
+	    type = input$tabs1 #PCA or Heatmap
+	    fun = str_c("get", type)
+	    if(type == "PCA"){
+	      pdf(file, width = get(fun)()[[3]] / 72, height = get(fun)()[[2]] / 72)
+	      print(get(fun)()[[1]])
+	    } else if(type == "Heatmap"){
+	      pdf(file, width = input$hmPlotWidth / 2.54, height = input$hmPlotRatio * input$hmPlotWidth / 2.54)
+	      gt = plotHeatmap(getClust())$ph$gtable
+	      grid.draw(gt)
+	    }
+	    dev.off()
+	  },
+	  contentType = "application/pdf"
+	)
+	
+	output$exportDownloadEpsPCA = output$exportDownloadEpsHeatmap = downloadHandler(
+	  filename = function() { str_c(toolname, input$tabs1, ".eps") },
+	  content = function(file) {
+	    type = input$tabs1 #PCA or Heatmap
+	    fun = str_c("get", type)
+	    if(type == "PCA"){
+	      postscript(file, horizontal = FALSE, onefile = FALSE, paper = "special", 
+	                 width = get(fun)()[[3]] / 72, height = get(fun)()[[2]] / 72)
+	      print(get(fun)()[[1]])
+	    } else if(type == "Heatmap"){
+	      postscript(file, horizontal = FALSE, onefile = FALSE, paper = "special", 
+	                 width = input$hmPlotWidth / 2.54, height = input$hmPlotRatio * input$hmPlotWidth / 2.54)
+	      gt = plotHeatmap(getClust())$ph$gtable
+	      grid.draw(gt)
+	    }
+	    dev.off()
+	  },
+	  contentType = "application/postscript"
+	)
+	
+	output$exportDownloadSvgPCA = output$exportDownloadSvgHeatmap = downloadHandler(
+	  filename = function() { str_c(toolname, input$tabs1, ".svg") },
+	  content = function(file) {
+	    type = input$tabs1 #PCA or Heatmap
+	    fun = str_c("get", type)
+	    if(type == "PCA"){
+	      svg(file, width = get(fun)()[[3]] / 72, height = get(fun)()[[2]] / 72)
+	      print(get(fun)()[[1]])
+	    } else if(type == "Heatmap"){
+	      svg(file, width = input$hmPlotWidth / 2.54, height = input$hmPlotRatio * input$hmPlotWidth / 2.54)
+	      gt = plotHeatmap(getClust())$ph$gtable
+	      grid.draw(gt)
+	    }
+	    dev.off()
+	  },
+	  contentType = "image/svg"
 	)
   
 	observe({
-		set.seed(NULL) #force random start
-		sessId = paste(sample(c(letters, LETTERS), 15, replace = TRUE), collapse = "")
-		updateTextInput(session, "exportSaveDeleteSettingsId", value = sessId)
+	  set.seed(NULL) #force random start
+	  sessId = paste(sample(c(letters, LETTERS), 15, replace = TRUE), collapse = "")
+	  updateTextInput(session, "exportSaveDeleteSettingsId", value = sessId)
 	})
 	
 	observe({
-		if (input$uploadClearTextButton == 0) return()
-		isolate({ updateTextInput(session, "uploadCopyPaste", label = ",", value = "") })
+	  if (input$uploadClearTextButton == 0) return()
+	  isolate({ updateTextInput(session, "uploadCopyPaste", label = ",", value = "") })
 	})
 	
-	#update calculated default delimiter and number of annotation rows:
+	#update calculated default delimiter and number of annotation rows and columns:
 	observe({
-		d = values$data
-		if(!is.null(d)){
-			updateNumericInput(session, "uploadNbrAnnoRows", value = d$n)
-			updateRadioButtons(session, "uploadFileSep", selected = switch(d$sep, "," = '1', "\t" = '2', ";" = '3'))
-		}
+	  d = values$data
+	  if(!is.null(d)){
+	    updateNumericInput(session, "uploadNbrColAnnos", value = d$nAnnoCol)
+	    updateNumericInput(session, "uploadNbrRowAnnos", value = d$nAnnoRow)
+	    updateRadioButtons(session, "uploadFileSep", selected = switch(d$sep, "," = '1', "\t" = '2', ";" = '3'))
+	  }
 	})
 	
 	#update settings if there is GET variable:
@@ -587,60 +1072,6 @@ shinyServer(function(input, output, session) {
 		}
 	})
 	
-	output$exportDownloadPdfPCA = output$exportDownloadPdfHeatmap = downloadHandler(
-		filename = function() { str_c(toolname, input$tabs1, ".pdf") },
-		content = function(file) {
-			type = input$tabs1 #PCA or Heatmap
-			fun = str_c("get", type)
-			if(type == "PCA"){
-				pdf(file, width = get(fun)()[[3]] / 72, height = get(fun)()[[2]] / 72)
-				print(get(fun)()[[1]])
-			} else if(type == "Heatmap"){
-				pdf(file, width = input$hmPlotWidth / 2.54, height = input$hmPlotRatio * input$hmPlotWidth / 2.54)
-				plotHeatmap(data = getClust())
-			}
-			dev.off()
-		},
-		contentType = "application/pdf"
-	)
-	
-	output$exportDownloadEpsPCA = output$exportDownloadEpsHeatmap = downloadHandler(
-		filename = function() { str_c(toolname, input$tabs1, ".eps") },
-		content = function(file) {
-			type = input$tabs1 #PCA or Heatmap
-			fun = str_c("get", type)
-			if(type == "PCA"){
-				postscript(file, horizontal = FALSE, onefile = FALSE, paper = "special", 
-					width = get(fun)()[[3]] / 72, height = get(fun)()[[2]] / 72)
-				print(get(fun)()[[1]])
-			} else if(type == "Heatmap"){
-				postscript(file, horizontal = FALSE, onefile = FALSE, paper = "special", 
-					width = input$hmPlotWidth / 2.54, height = input$hmPlotRatio * input$hmPlotWidth / 2.54)
-				plotHeatmap(data = getClust())
-			}
-			dev.off()
-		},
-		contentType = "application/postscript"
-	)
-	
-	output$exportDownloadSvgPCA = output$exportDownloadSvgHeatmap = downloadHandler(
-		filename = function() { str_c(toolname, input$tabs1, ".svg") },
-		content = function(file) {
-			type = input$tabs1 #PCA or Heatmap
-			fun = str_c("get", type)
-			if(type == "PCA"){
-				svg(file, width = get(fun)()[[3]] / 72, height = get(fun)()[[2]] / 72)
-				print(get(fun)()[[1]])
-			} else if(type == "Heatmap"){
-				svg(file, width = input$hmPlotWidth / 2.54, height = input$hmPlotRatio * input$hmPlotWidth / 2.54)
-				ph = plotHeatmap(data = getClust())
-				ph[[1]]
-			}
-			dev.off()
-		},
-		contentType = "image/svg"
-	)
-    
   #update list of datasets:
 	observe({
 		if(input$uploadDataInput == 5){
@@ -655,7 +1086,7 @@ shinyServer(function(input, output, session) {
 		    dslist = df$id2
 		    names(dslist) = df$label3
 		    dslist = c("", dslist)
-		    updateSelectizeInput(session, "uploadPbDataset", choices = dslist, selected = "", server = TRUE) #server = TRUE is faster, but doesn't work correctly in the new version of shiny (0.11.1)
+		    updateSelectizeInput(session, "uploadPbDataset", choices = dslist, server = TRUE)
 		  }
 		}
 	})
@@ -673,32 +1104,55 @@ shinyServer(function(input, output, session) {
         org_short = str_c(tolower(str_sub(str[[1]][1], 1, 1)), str[[1]][2])
         load(file = str_c(pwPath, "clustvisInput_", pwDate, "_spec_", org_short, ".RData"))
         pwlist = c("", uploadPathwayList)
-        updateSelectizeInput(session, "uploadPbPathway", choices = pwlist, selected = "", server = TRUE)
+        updateSelectizeInput(session, "uploadPbPathway", choices = pwlist, server = TRUE)
       }
 		}
 	})
 	
-	#generate filtering options:
-	output$uploadColumnFilters = renderUI({
-		anno = readData()$anno #use original unfiltered data for defining groups
-		if(!is.null(anno)){
-			cn = colnames(anno)
-			cnCut = cutLong(cn, maxCharactersAnnotations)
-			names(cn) = str_c("by '", cnCut, "'")
-			taglist = list()
-			for(i in 1:length(cn)){
-				n = length(taglist)
-				id = str_c("uploadColumnFilters", i)
-				uni = sort(as.vector(unique(anno[, i])))
-				uniCut = cutLong(uni, maxCharactersAnnotations)
-				names(uni) = str_c("- ", uniCut)
-				taglist[[n + 1]] = checkboxGroupInput(id, NULL, choices = cn[i])
-				taglist[[n + 2]] = conditionalPanel(condition = str_c("input.", id, " != ''"),
-					checkboxGroupInput(str_c(id, "sub"), NULL, choices = uni, selected = uni)
-				)
-			}
-			taglist
-		}
+  #update annotations based on groups:
+	observe({
+    grNew = values$data$inputSaved$procAnnoGroups
+    grOld = values$procAnnoGroupsOld
+    #which checkbox has changed state (one at a time)
+    checked = setdiff(grNew, grOld)
+    unchecked = setdiff(grOld, grNew)
+    if(length(checked) > 0){
+      updateCheckboxGroupInput(session, "procAnno", 
+        selected = union(values$data$inputSaved$procAnno, values$data$annoGroupsCol[[checked[1]]]))
+    } else if(length(unchecked) > 0){
+      updateCheckboxGroupInput(session, "procAnno", 
+        selected = setdiff(values$data$inputSaved$procAnno, values$data$annoGroupsCol[[unchecked[1]]]))
+    }
+	})
+  
+	observeEvent(input$hmBackButton, {
+	  session$sendCustomMessage(type = 'sendEmpty', message = list())
+	})
+  
+	observeEvent(input$pcaBackButton, {
+	  session$sendCustomMessage(type = 'sendEmpty', message = list())
+	})
+  
+	#generate filtering options
+	#use original unfiltered data for defining groups
+	output$uploadColumnFiltersAnno = renderUI({
+		data = setAnnoGroups()
+    if(!identical(data$annoGroupsCol, values$annoGroupsColOld)){
+      saved = list()
+    } else {
+      saved = data$inputSaved
+    }
+    annotationsFilters(data$annoCol, saved, type = "Column", data$annoGroupsCol)
+	})
+  
+	output$uploadRowFiltersAnno = renderUI({
+	  data = setAnnoGroups()
+	  if(!identical(data$annoGroupsRow, values$annoGroupsRowOld)){
+	    saved = list()
+	  } else {
+	    saved = data$inputSaved
+	  }
+	  annotationsFilters(data$annoRow, saved, type = "Row", data$annoGroupsRow)
 	})
 	
 	output$legendPCA <- renderUI({
@@ -714,7 +1168,7 @@ shinyServer(function(input, output, session) {
       pcs = c(as.numeric(data$inputSaved$pcaPcx), as.numeric(data$inputSaved$pcaPcy))
       leg = append(leg, c(capitalize(sc), " is applied to rows; ", meth, " is used to calculate principal components. X and Y axis show principal component ", data$inputSaved$pcaPcx, 
                           " and principal component ", data$inputSaved$pcaPcy, " that explain ", round(data$varTable[1, pcs[1]] * 100, 1), "% and ", round(data$varTable[1, pcs[2]] * 100, 1), "% of the total variance, respectively. "))
-      if(toBoolean(data$inputSaved$pcaShowEllipses)){
+      if(getPCA()$showEllipses){
         leg = append(leg, c("Prediction ellipses are such that with probability ", 
                             data$inputSaved$pcaEllipseConf, 
                             ", a new observation from the same group will fall inside the ellipse. "))
@@ -726,17 +1180,16 @@ shinyServer(function(input, output, session) {
 	})
   
 	output$legendHeatmap <- renderUI({
-    if(!is.null(values$data) && all(dim(values$data$mat) <= maxDimensionHeatmap)){
-      data = getProc()
+	  data = getProc()
+    if(!is.null(data) && all(dim(data$matImputed) <= maxDimensionHeatmap)){
       leg = c()
       if(data$inputSaved$procMethodAgg != "no collapse"){
-        leg = append(leg, c("Columns with similar annotations are collapsed by taking ", 
-                            data$inputSaved$procMethodAgg, " inside each group. "))
+        leg = append(leg, c(changeIfTransposed("Columns", data$inputSaved), " with similar annotations are collapsed by taking ", data$inputSaved$procMethodAgg, " inside each group. "))
       }
       sc = names(procScalings)[match(data$inputSaved$procScaling, procScalings)]
-      scaling = str_c(sc, " is applied to rows. ")
+      scaling = str_c(sc, " is applied to ", changeIfTransposed("rows", data$inputSaved), ". ")
       if(toBoolean(data$inputSaved$procCentering)){
-        leg = append(leg, c("Rows are centered; ", scaling))
+        leg = append(leg, c(changeIfTransposed("Rows", data$inputSaved), " are centered; ", scaling))
       } else {
         leg = append(leg, capitalize(scaling))
       }
@@ -762,13 +1215,12 @@ shinyServer(function(input, output, session) {
     }
 	})
   
-  #http://shiny.rstudio.com/articles/datatables.html
+	#http://shiny.rstudio.com/articles/datatables.html
 	output$helpDatasetTable = renderDataTable({
 	  helpDatasetTable
 	}, options = helpTablesOptions)
-  
+	
 	output$helpPathwayTable = renderDataTable({
 	  helpPathwayTable
 	}, options = helpTablesOptions)
 })
-
