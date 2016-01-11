@@ -587,7 +587,7 @@ fluidPage(
 					p("If there are more groups than available shapes, some groups are not shown on the plot."),
 					h5("Interactivity of the plots", id = "interactivity"),
           p("With the recent updates of the tool, interactive mode was added to both PCA plot and heatmap which allows to click and hover over specific areas of the plot. This mode is available when going to PCA or heatmap tab and choosing 'change plot labels', 'add interactivity'). Interactivity is still experimental, we are hoping to get feedback from users. It is not made the default option because plots are slower to render. It is recommended to first set other options in non-interactive mode and then switch to interactive mode as the last step. For larger datasets where an interactive plot would take too long to render, it is automatically switched to non-interactive mode and a warning message is shown."),
-          p("Interactive mode includes the following additional options:<ul>
+          HTML("Interactive mode includes the following additional options:<ul>
                <li>Hover over a point on the PCA plot to see additional information.</li>
                <li>Click on a point on the PCA plot to see values from one column on a separate jitter plot.</li>
                <li>Hover over a row name, column name or cell on the heatmap to see additional information.</li>
