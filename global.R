@@ -71,7 +71,7 @@ maxDimensionHeatmap = 1200 #how large matrix we allow for heatmap (clustering an
 #maximum number of tooltips allowed on different types of plot, to avoid very slow rendering
 #if greater than that, falls back to static plot and gives warning message
 maxTooltipsPCA = 400
-maxTooltipsHm = 120
+maxTooltipsHm = 80
 maxTooltipsRCplot = 100
 
 #maximum number of levels allowed for color and shape on PCA plot and heatmap (too many levels can make rendering slow and output ugly):
