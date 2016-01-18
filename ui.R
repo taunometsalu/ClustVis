@@ -80,7 +80,8 @@ fluidPage(
 				),
 				conditionalPanel(condition = "input.uploadDataInput == '2'",
 					h5("Upload delimited text file: "),
-					fileInput("uploadFile", NULL, multiple = FALSE)
+					fileInput("uploadFile", NULL, multiple = FALSE),
+					p(str_c('Maximum file size is ', maxUploadMB, ' MB.'))
 				),
 				conditionalPanel(condition = "input.uploadDataInput == '3'",
 					h5("Paste data below:"),
@@ -123,12 +124,20 @@ fluidPage(
         
 				conditionalPanel(condition = "input.uploadDataInput == '5' || input.uploadDataInput == '6'",
 				  h5("Gene subsetting or clustering:"),
-				  radioButtons("uploadRowFiltering", NULL, list("Subset a pathway" = 1, "Cluster genes" = 2, "Choose one cluster" = 3)),
+				  radioButtons("uploadRowFiltering", NULL, list("Subset a pathway" = 1, "Subset a custom gene list" = 4, "Cluster genes" = 2, "Choose one cluster" = 3)),
 				  conditionalPanel(condition = "input.uploadRowFiltering == '1'",
 				    selectizeInput("uploadPbPathway", "Pathway:", choices = NULL, selected = NULL,
 				      options = list(placeholder = 'search for a pathway')),
 				    HTML('<p>You can type some keywords separated by space (e.g. kegg estrogen) and then select a pathway; use backspace to delete.</p>')
 				  ),
+          
+				  conditionalPanel(condition = "input.uploadRowFiltering == '4'",
+				    h5("Paste your gene list below:"),
+				    tags$textarea(id = "uploadGeneList", rows = 10, cols = 5, ""),
+				    actionButton('uploadClearGeneListButton', 'Clear data'),
+				    HTML('<p>Genes should be separated by white space (spaces, tabs or newlines).</p>')
+				  ),
+          
 				  conditionalPanel(condition = "input.uploadRowFiltering == '2' || input.uploadRowFiltering == '3'",
   				  numericInput("uploadNbrClusters", "Number of k-means clusters:", 
               value = 100, min = 2, max = 600),
@@ -343,7 +352,7 @@ fluidPage(
 			bsTooltip("uploadColumnFilteringAnno", "You can select a subset of columns using annotation groups.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("uploadRowFilteringAnno", "You can select a subset of rows using annotation groups.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("uploadMatrixTranspose", "You can transpose the data matrix. Row annotations will become column annotations and vice versa in this case.", tooltipPlace, options = tooltipOptions),
-			bsTooltip("uploadRowFiltering", "How to limit the number of rows shown - take one pathway, cluster the genes using k-means and show cluster centers or choose one specific cluster from k-means clustering.", tooltipPlace, options = tooltipOptions),
+			bsTooltip("uploadRowFiltering", "How to limit the number of rows shown - take one pathway or custom gene list, cluster the genes using k-means and show cluster centers or choose one specific cluster from k-means clustering.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("uploadNbrClusters", "Number of clusters after appying k-means clustering.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("uploadClusterId", "Which cluster to visualize more closely. The previous option should be run first to identify a cluster of interest.", tooltipPlace, options = tooltipOptions),
 			
@@ -431,7 +440,7 @@ fluidPage(
         #http://stackoverflow.com/questions/8903313/using-regular-expression-in-css
         tags$style(type = "text/css", "div[id$='track'] { color: blue; }"),
 				tags$style(type = "text/css", "div[id$='tracksub'] { color: green; }"),
-				tags$style(type = "text/css", "#uploadCopyPaste { width: 220px; }"),
+				tags$style(type = "text/css", "textarea { width: 220px; }"),
         #http://stackoverflow.com/questions/13217669/svg-image-with-a-border-stroke
 				tags$style(type = "text/css", ".pcaCol:hover, .pcaCol:focus, .pcaCol:active { cursor: pointer; }"),
         tags$style(type = "text/css", ".hmCell:hover, .hmCell:focus, .hmCell:active { cursor: pointer; stroke: red; stroke-width: 2px; }"),
@@ -448,7 +457,7 @@ fluidPage(
 					" project and borrows some code from ", 
 					HTML("<a href='http://boxplot.tyerslab.com/' target='_blank'>BoxPlotR</a>."),
 					"Several ", a("R", href = "http://www.r-project.org/", target = "_blank"), " packages are used internally, including ", 
-					"shiny, ggplot2, pheatmap, gridSVG, RColorBrewer, FactoMineR, pcaMethods, shinyBS, shinyjs and others. It is developed in ", 
+					"shiny, ggplot2, pheatmap, gridSVG, RColorBrewer, FactoMineR, pcaMethods, gProfileR, shinyBS, shinyjs and others. It is developed in ", 
 					a("BIIT", href = "http://biit.cs.ut.ee/", target = "_blank"), 
 					"Research Group. The source code of ClustVis is available in ",
 					HTML("<a href='https://github.com/taunometsalu/ClustVis' target='_blank'>GitHub</a>."),
@@ -547,7 +556,7 @@ fluidPage(
 					p("You can move through the analysis steps by going to each of the tabs from left to right. All tabs work in a similar way: you can choose settings from the left panel, image or table on the right will automatically renew after that. Sometimes, it can take seconds to load. When moving from one tab to another, settings are saved automatically."),
           p("The idle timeout (the time when browser session ends if user is inactive) is set to 30 minutes from server side but this can be overridden by browser configuration. To save uploaded data and selected settings, you can use a button on the 'Export' tab, a link is given to recover the settings later. This can also be used to send a link to a collaborator to show the same view. There is no planned expiration time for the links, users can delete the settings if they are concerned about the privacy. Though, when version of ClustVis changes, old saved settings may not be fully compatible with the new version if e.g. there are some new features. "),
 					h5("Data upload", id = "upload"),
-					p("We aimed for a simple input data format. The numeric data matrix is situated in the bottom right corner, dimensions presented in rows and points in columns. Row labels and annotations are left from the matrix, column labels and annotations are above the matrix. Annotation labels are in the first row and column, respectively. Format of the input file is shown on the image below. Annotations are optional, data sets without annotations can be uploaded as well (on the example image, omitting rows 2-4 and/or columns B and C)."),
+					p("We aimed for a simple input data format. The numeric data matrix is situated in the bottom right corner, dimensions presented in rows and points in columns. Row labels and annotations are left from the matrix, column labels and annotations are above the matrix. Annotation labels are in the first row and column, respectively. Format of the input file is shown on the image below. Annotations are optional, data sets without annotations can be uploaded as well (on the example image, omitting rows 2-4 and/or columns B and C). When taking data from spreadsheet program (e.g. MS Excel), you can copy-paste the data to 'Paste data' box or export the data as delimited text file (ending with .csv or .tab) and then upload this file to ClustVis. Uploading Excel native files directly (.xls or .xlsx) doesn't work."),
 					img(src = "helpTab/uploadTableArrows.png", width = "100%"),
           p(),
 					p("In addition, it is possible to load settings that you have saved earlier (including data, drop-down settings etc.) or import data from",  
@@ -560,6 +569,7 @@ fluidPage(
           HTML("<ul><li>Make sure file is chosen for upload or pasted to the text box.</li>
               <li>Make sure all rows have equal number of columns. In case of doubt, it is safer to open the data in a spreadsheet program and copy-paste from there rather than choosing a file for upload.</li>
               <li>Make sure there are no duplicate row or column names.</li>
+              <li>Make sure all missing values are marked with NA or empty cell.</li>
               <li>If automatic detection of the delimiter is not working correctly, try to set it manually (uncheck the 'detect delimiter' checkbox).</li>
               <li>If automatic detection of the column and row annotations is not working correctly, try to set it manually (uncheck the 'detect column and row annotations' checkbox).</li></ul>"),
 					p("For user-uploaded datasets, ClustVis automatically detects both delimiter and number of annotation rows from the data by default. To find delimiter, it counts for each possible delimiter (comma, tabulator, semicolon) how many times it appears on each row. We use the heuristic where minimum is taken over all rows and the delimiter with the greatest score is chosen as the right one."),
@@ -567,12 +577,13 @@ fluidPage(
           p("The situation is depicted on the following images where there are three annotation lines and the green and red line show automatic detection. On the left, the numeric matrix contains non-integer values and the last annotation row is detected correctly. On the right, the numeric matrix contains only integers and the last annotation row cannot be detected automatically."),
 					img(src = "helpTab/helpMatrix.png", width = "100%"),
 					h5("Public dataset from MEM", id = "mem"),
-          p("If you select this option, you can choose one dataset at a time. There are three options to filter the number of rows shown:"),
+          p("If you select this option, you can choose one dataset at a time. There are four options to filter the number of rows shown:"),
           HTML("<ul><li>Select one KEGG or Reactome pathway or GO biological process. In case of some rare platforms, it can happen that gene IDs don't convert correctly and no data is shown.</li>
+              <li>Select a custom gene list. IDs are automatically converted using <a href='http://biit.cs.ut.ee/gprofiler/gconvert.cgi'>g:Convert</a> tool.</li>
               <li>Cluster the genes using k-means. The number of clusters is provided by the user. Cluster ID and number of genes in each cluster is shown on the heatmap labels.</li>
               <li>Choose one of the k-means clusters. This options should be preceded by clustering with k-means and choosing a cluster of interest from the heatmap.</li></ul>"),
 					p("If it happens that some names are very long and make the plot small, you can manually increase the width of the plot. We decided not to truncate the names automatically because sometimes the start of the name is important, sometimes the end and it is hard to decide it automatically. "),
-					p("You can search for dataset and pathway by typing one or more keywords to the search box and then select from drop-down list that appears. The keywords can be about body part, dataset ID or any other word that will appear in the experiment title. All available datasets are summarized in the table below."),
+					p("You can search for dataset and pathway by typing one or more keywords to the search box and then select from drop-down list that appears. The keywords can be about body part, dataset ID or any other word that appears in the experiment title. All available datasets and pathways are summarized in the tables below."),
 					h5("List of datasets available", id = "datasets"),
           dataTableOutput('helpDatasetTable'),
 					h5("List of pathways available", id = "pathways"),
@@ -586,7 +597,7 @@ fluidPage(
 					img(src = "helpTab/shapes.png"),
 					p("If there are more groups than available shapes, some groups are not shown on the plot."),
 					h5("Interactivity of the plots", id = "interactivity"),
-          p("With the recent updates of the tool, interactive mode was added to both PCA plot and heatmap which allows to click and hover over specific areas of the plot. This mode is available when going to PCA or heatmap tab and choosing 'change plot labels', 'add interactivity'). Interactivity is still experimental, we are hoping to get feedback from users. It is not made the default option because plots are slower to render. It is recommended to first set other options in non-interactive mode and then switch to interactive mode as the last step. For larger datasets where an interactive plot would take too long to render, it is automatically switched to non-interactive mode and a warning message is shown."),
+          p("With the recent updates of the tool, interactive mode was added to both PCA plot and heatmap which allows to click and hover over specific areas of the plot. This mode is available when going to PCA or heatmap tab and choosing 'change plot labels', 'add interactivity'. Interactivity is still experimental, we are hoping to get feedback from users. It is not made the default option because plots are slower to render. It is recommended to first set other options in non-interactive mode and then switch to interactive mode as the last step. For larger datasets where an interactive plot would take too long to render, it is automatically switched to non-interactive mode and a warning message is shown."),
           HTML("Interactive mode includes the following additional options:<ul>
                <li>Hover over a point on the PCA plot to see additional information.</li>
                <li>Click on a point on the PCA plot to see values from one column on a separate jitter plot.</li>
@@ -618,7 +629,8 @@ fluidPage(
 				),
 				tabPanel("News",
 					h5("Version history:"),
-					p("8th January 2016 - major restructuring: interactive mode introduced (see help page), extended input file format and related changes to allow row annotations for the heatmap (including row filtering, different detection of annotation lines, modified help page), colored labels for annotation based filtering, annotation groups introduced, option to remove rows and/or columns with many missing values, option to remove constant columns, option to transpose heatmap, option to set general font size on heatmap, font of annotation legend automatically scaled down if it doesn't fit to the plot, option to add space between clusters on heatmap, corrected Ward linkage method added, some data format checks and warning messages, limit for maximum number of annotation levels shown on PCA plot and heatmap, footer changed into a link, Shiny Server updated to 1.4.1.759 and Shiny package updated to 0.12.2, some custom changes in the pheatmap R code merged to the main branch of pheatmap R package."),
+					p("18th January 2016 - fix 'show imputed values' to show scaled heatmap when unchecked, option to use a custom gene list when subsetting ArrayExpress dataset, message about gene names that were not present in the dataset, limit for maximum number of components to be calculated (for performance reasons), warning message about maximum uploaded file size added, pathway genes sorted alphabetically, shiny package updated to 0.13."),
+					p("8th January 2016 - major restructuring: interactive mode introduced (see help page), extended input file format and related changes to allow row annotations for the heatmap (including row filtering, different detection of annotation lines, modified help page), colored labels for annotation based filtering, annotation groups introduced, option to remove rows and/or columns with many missing values, option to remove constant columns, option to transpose heatmap, option to show missing values on heatmap, option to set general font size on heatmap, font of annotation legend automatically scaled down if it doesn't fit to the plot, option to add space between clusters on heatmap, corrected Ward linkage method added, some data format checks and warning messages, limit for maximum number of annotation levels shown on PCA plot and heatmap, footer changed into a link, Shiny Server updated to 1.4.1.759 and Shiny package updated to 0.12.2, some custom changes in the pheatmap R code merged to the main branch of pheatmap R package."),
 					p("27th May 2015 - ClustVis is now running on ", HTML("<a href='https://www.docker.com/' target='_blank'>Docker</a>;"), " reference to published article added to the footer."),
 					p("21st April 2015 - option to transpose the data matrix added under 'Data upload'; maximal heatmap dimension increased to 1200; a small bug fixed related with uploading a dataset without annotations."),
 					p("17th April 2015 - second revision based on comments from reviewers: number of species increased to 17; more informative error messages for data upload; number of NAs in rows and columns is shown during upload; help page improved (including list of all datasets and pathways)."),

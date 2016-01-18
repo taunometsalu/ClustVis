@@ -100,11 +100,15 @@ shinyServer(function(input, output, session) {
         })
 				
 				if(settingsLarge){
-					mat = filterRows(session, mat, input, organism = "hsapiens", annoGroupsCol = annoGroupsCol)
+          fr = filterRows(session, mat, input, organism = "hsapiens", annoGroupsCol = annoGroupsCol)
+					mat = fr$mat
+          message = fr$message
+				} else {
+          message = NULL
 				}
         l = list(annoCol = annoCol, annoRow = annoRow, mat = mat, 
                  nAnnoCol = nAnnoCol, nAnnoRow = nAnnoRow, sep = sep, 
-                 inputSaved = input, annoLevsTab = NULL, message = NULL, 
+                 inputSaved = input, annoLevsTab = NULL, message = message, 
                  annoGroupsCol = annoGroupsCol, annoGroupsRow = annoGroupsRow)
 				return(l)
 			} else {
@@ -159,10 +163,12 @@ shinyServer(function(input, output, session) {
 				close.nc(nc)
 				
         annoGroupsCol = annoGroupsRow = NULL
-				mat = filterRows(session, mat, input, organism = org2, annoGroupsCol = annoGroupsCol)
+        fr = filterRows(session, mat, input, organism = org2, annoGroupsCol = annoGroupsCol)
+				mat = fr$mat
+        message = fr$message
 				return(list(annoCol = annoCol, annoRow = annoRow, mat = mat, 
 				            nAnnoCol = nAnnoCol, nAnnoRow = nAnnoRow, sep = ",", 
-                    inputSaved = input, annoLevsTab = annoLevsTab, message = NULL,
+                    inputSaved = input, annoLevsTab = annoLevsTab, message = message,
 				            annoGroupsCol = annoGroupsCol, annoGroupsRow = annoGroupsRow))
 			} else {
 				return(NULL)
@@ -222,8 +228,9 @@ shinyServer(function(input, output, session) {
 		    data3 = data2[(nAnnoCol + 1):nrow(data2), (nAnnoRow + 1):ncol(data2), drop = FALSE]
 		    data3int = data3; suppressWarnings(class(data3int) <- "integer")
 		    data3num = data3; suppressWarnings(class(data3num) <- "numeric")
-		    intCells = !is.na(data3num) & ((data3int - round(data3num, 10)) == 0)
-		    if(!all(intCells)){
+		    #intCells = !is.na(data3num) & ((data3int - round(data3num, 10)) == 0)
+		    intCells = is.na(data3num) | ((data3int - round(data3num, 10)) == 0)
+        if(!all(intCells)){
 		      intRowLast = as.vector(intCells[nrow(intCells), ])
 		      nAnnoRow = nAnnoRow + which(!intRowLast)[1] - 1
 		      intColLast = as.vector(intCells[, ncol(intCells)])
@@ -282,7 +289,6 @@ shinyServer(function(input, output, session) {
       data$annoGroupsRow = list()
       data$annoGroupsRow[[allAnno]] = cn
     }
-    values$newData = TRUE
     data
   })
 
@@ -333,8 +339,9 @@ shinyServer(function(input, output, session) {
     
     isolate({
       updateProcOptions(session, data$annoCol, data$annoGroupsCol)
+      updatePcaOptions(session, data$mat, data$inputSaved)
+      updateHmOptions(session, data$mat, colnames(data$annoRow), data$inputSaved$procAnno)
     })
-    values$newData = FALSE
     
 		data
 	})
@@ -417,16 +424,18 @@ shinyServer(function(input, output, session) {
 	})
   
   output$uploadWarnings = renderText({
-    missing = c(input$uploadPbDataset == "", input$uploadPbPathway == "")
-    words = c("a dataset", "a pathway (or change row filtering type)")
-    warnWords = str_c(words[missing], collapse = " and ")
+    missing = c(input$uploadPbDataset == "", (input$uploadRowFiltering == 1) & (input$uploadPbPathway == ""), (input$uploadRowFiltering == 4) & (input$uploadGeneList == ""))
+    words = c("a dataset", "a pathway (or change row filtering type)", "your gene list to the box on the left (or change row filtering type)")
+    verbs = c("choose ", "choose ", "copy ")
+    if(missing[1] & missing[2]) verbs[2] = ""
+    warnWords = str_c(str_c(verbs[missing], words[missing]), collapse = " and ")
     validate(
       need(is.null(values$data$message), values$data$message),
       need(!(input$uploadDataInput == 2 & is.null(input$uploadFile)), "Please choose a file to upload!"),
       need(!(input$uploadDataInput == 3 & (is.null(input$uploadCopyPaste) || input$uploadCopyPaste == "")), "Please copy your data to the text box on the left!"),
-      need(!(input$uploadDataInput == 5 & input$uploadRowFiltering == 1 & (missing[1] | missing[2])), 
-          str_c("Please choose ", warnWords, "!")),
-      need(!(input$uploadDataInput == 5 & input$uploadRowFiltering != 1 & missing[1]), "Please choose a dataset!"),
+      need(!(input$uploadDataInput == 5 & (input$uploadRowFiltering %in% c(1, 4)) & (missing[1] | missing[2] | missing[3])), 
+          str_c("Please ", warnWords, "!")),
+      need(!(input$uploadDataInput == 5 & !(input$uploadRowFiltering %in% c(1, 4)) & missing[1]), "Please choose a dataset!"),
       need(!(input$uploadDataInput %in% c(4, 6) & input$uploadSettingsId == ""), "No settings ID found!")
     )
     validate(
@@ -436,9 +445,11 @@ shinyServer(function(input, output, session) {
   
 	#pre-processing
 	getProc = reactive({
+    if(is.null(values$data$mat)) return(NULL)
 	  proc = dataProcess(data = values$data)
 	  isolate({
       updatePcaOptions(session, proc$matImputed, proc$inputSaved)
+      updateHmOptions(session, proc$matImputed, colnames(proc$annoRow), proc$inputSaved$procAnno)
       session$sendCustomMessage(type = 'sendEmpty', message = list()) #reset clicked object
     })
     proc
@@ -461,7 +472,8 @@ shinyServer(function(input, output, session) {
       )
 	    validate(
 	      need(length(sd0r) == 0, sd0rWarning),
-	      need(length(sd0c) == 0, sd0cWarning)
+	      need(length(sd0c) == 0, sd0cWarning),
+        need(min(dim(proc$mat)) <= maxComponents, str_c("Only first ", maxComponents, " principal components calculated and used for missing value imputation."))
 	    )
 	  } else {
 	    return(NULL)
@@ -652,10 +664,11 @@ shinyServer(function(input, output, session) {
     )
     inputSaved = data$inputSaved
     matImputed = data$matImputed
+    matScaled = data$matScaled
     if(toBoolean(inputSaved$hmShowImputed)){
       matFinal = matImputed
     } else {
-      matFinal = data$mat
+      matFinal = matScaled
     }
     annoCol = data$annoCol
     annoRow = data$annoRow
@@ -671,6 +684,7 @@ shinyServer(function(input, output, session) {
     if(toBoolean(inputSaved$hmTransposeHeatmap)){
       if(!is.null(matImputed)){
         matImputed = t(matImputed)
+        matScaled = t(matScaled)
         matFinal = t(matFinal)
       }
       temp = annoCol
@@ -685,7 +699,9 @@ shinyServer(function(input, output, session) {
       mappingCol = mappingRow
       mappingRow = temp
     }
-    isolate(updateHmOptions(session, matFinal, cnr, cnc))
+    isolate({
+      updateHmOptions(session, matFinal, cnr, cnc)
+    })
     list(matFinal = matFinal, matImputed = matImputed, annoCol = annoCol, 
          annoRow = annoRow, inputSaved = inputSaved, 
          mappingCol = mappingCol, mappingRow = mappingRow)
@@ -982,8 +998,8 @@ shinyServer(function(input, output, session) {
 	    type = input$tabs1 #PCA or Heatmap
 	    fun = str_c("get", type)
 	    if(type == "PCA"){
-	      pdf(file, width = get(fun)()[[3]] / 72, height = get(fun)()[[2]] / 72)
-	      print(get(fun)()[[1]])
+	      pdf(file, width = get(fun)()$picw / 72, height = get(fun)()$pich / 72)
+	      print(get(fun)()$q)
 	    } else if(type == "Heatmap"){
 	      pdf(file, width = input$hmPlotWidth / 2.54, height = input$hmPlotRatio * input$hmPlotWidth / 2.54)
 	      gt = plotHeatmap(getClust())$ph$gtable
@@ -1001,8 +1017,8 @@ shinyServer(function(input, output, session) {
 	    fun = str_c("get", type)
 	    if(type == "PCA"){
 	      postscript(file, horizontal = FALSE, onefile = FALSE, paper = "special", 
-	                 width = get(fun)()[[3]] / 72, height = get(fun)()[[2]] / 72)
-	      print(get(fun)()[[1]])
+	                 width = get(fun)()$picw / 72, height = get(fun)()$pich / 72)
+	      print(get(fun)()$q)
 	    } else if(type == "Heatmap"){
 	      postscript(file, horizontal = FALSE, onefile = FALSE, paper = "special", 
 	                 width = input$hmPlotWidth / 2.54, height = input$hmPlotRatio * input$hmPlotWidth / 2.54)
@@ -1020,10 +1036,10 @@ shinyServer(function(input, output, session) {
 	    type = input$tabs1 #PCA or Heatmap
 	    fun = str_c("get", type)
 	    if(type == "PCA"){
-	      svg(file, width = get(fun)()[[3]] / 72, height = get(fun)()[[2]] / 72)
-	      print(get(fun)()[[1]])
+	      svglite(file, width = get(fun)()$picw / 72, height = get(fun)()$pich / 72)
+	      print(get(fun)()$q)
 	    } else if(type == "Heatmap"){
-	      svg(file, width = input$hmPlotWidth / 2.54, height = input$hmPlotRatio * input$hmPlotWidth / 2.54)
+	      svglite(file, width = input$hmPlotWidth / 2.54, height = input$hmPlotRatio * input$hmPlotWidth / 2.54)
 	      gt = plotHeatmap(getClust())$ph$gtable
 	      grid.draw(gt)
 	    }
@@ -1043,6 +1059,11 @@ shinyServer(function(input, output, session) {
 	  isolate({ updateTextInput(session, "uploadCopyPaste", label = ",", value = "") })
 	})
 	
+	observe({
+	  if (input$uploadClearGeneListButton == 0) return()
+	  isolate({ updateTextInput(session, "uploadGeneList", label = ",", value = "") })
+	})
+  
 	#update calculated default delimiter and number of annotation rows and columns:
 	observe({
 	  d = values$data

@@ -6,8 +6,10 @@ cachePath = "/srv/data_cache/" #path of .RData files
 pbPathPrefix = "/srv/data_pb/" #path of MEM files
 
 .libPaths(libPath)
-library(stringr)
 options(stringsAsFactors = FALSE)
+options(shiny.trace = TRUE)
+
+library(stringr)
 library(RNetCDF)
 library(shiny)
 library(shinyBS)
@@ -25,6 +27,7 @@ library(Cairo) #nicer ggplot2 output
 library(XML)
 library(gridSVG)
 library(shinyjs)
+library(svglite) #faster SVG generation
 #devtools::install_github("taunometsalu/pheatmap")
 library(pheatmap)
 
@@ -68,6 +71,7 @@ shapeList = c("letters", "various")
 interactivityAnnos = c("plot_tooltip", "plot_link") #reserved annotation names
 maxCharactersAnnotations = 20 #how many characters to show for long annotations - to cut too long names
 maxDimensionHeatmap = 1200 #how large matrix we allow for heatmap (clustering and plotting a large matrix will be slow)
+maxComponents = 100 #maximum number of principal components to calculate (more will make it too slow)
 #maximum number of tooltips allowed on different types of plot, to avoid very slow rendering
 #if greater than that, falls back to static plot and gives warning message
 maxTooltipsPCA = 400
@@ -109,7 +113,9 @@ shinyjs.sendEmpty = function(){
 "
 
 setwd(sessPath)
-options(shiny.maxRequestSize = 2 * 1024 ^ 2) #http://stackoverflow.com/questions/18037737/how-to-change-maximum-upload-size-exceeded-restriction-in-shiny-and-save-user
+maxUploadMB = 2 #maximum uploaded file size in MB
+#http://stackoverflow.com/questions/18037737/how-to-change-maximum-upload-size-exceeded-restriction-in-shiny-and-save-user
+options(shiny.maxRequestSize = maxUploadMB * 1024 ^ 2) 
 
 
 #convert checkboxGroup to boolean
@@ -295,7 +301,7 @@ calcNaTable = function(mat, na, naRem){
   if(length(na) > 0){
     perc = na / ncol(mat) * 100
     perc2 = str_c(formatC(perc, format = "f", digits = 1), "%")
-    rem = mapvalues(names(na) %in% naRem, c(TRUE, FALSE), c("yes", "no"))
+    rem = mapvalues(names(na) %in% naRem, c(TRUE, FALSE), c("yes", "no"), warn_missing = FALSE)
     tab = rbind(Count = na, Percentage = perc2, Removed = rem)
   } else {
     tab = NULL
@@ -329,7 +335,7 @@ hasAnno = function(anno, name){
 }
 
 dataProcess = function(data){
-	if(is.null(data)) return(NULL)
+	if(is.null(data$inputSaved)) return(NULL)
 	set.seed(124987234)
 	inputSaved = data$inputSaved
 	procCentering = toBoolean(inputSaved$procCentering)
@@ -410,10 +416,11 @@ dataProcess = function(data){
 	}
   
 	prep = prep(t(mat), scale = inputSaved$procScaling, center = procCentering)
-	pca = pca(prep, method = inputSaved$procMethod, nPcs = min(dim(mat)))
+	pca = pca(prep, method = inputSaved$procMethod, nPcs = min(c(dim(mat), maxComponents)))
 	matPca = scores(pca)
   pcaLoadings = loadings(pca)
 	matImputed = t(completeObs(pca))
+	matScaled = t(prep)
 	varTable = rbind(Individual = pca@R2, Cumulative = pca@R2cum)
 	colnames(varTable) = str_c("PC", 1:ncol(varTable))
   rownames(sizeTable) = c("Before processing", "After collapsing similar columns (if applied)", 
@@ -422,7 +429,7 @@ dataProcess = function(data){
   annoCol = recalcFactorLevels(annoCol)
 	annoRow = recalcFactorLevels(annoRow)
 	l = list(annoCol = annoCol, annoRow = annoRow, 
-           mat = mat, matPca = matPca, matImputed = matImputed, 
+           mat = mat, matPca = matPca, matScaled = matScaled, matImputed = matImputed, 
            varTable = varTable, sizeTable = sizeTable,
            pcaLoadings = pcaLoadings, inputSaved = inputSaved,
 	         naTableRows = naTableRows, naTableCols = naTableCols, 
@@ -469,7 +476,7 @@ updatePcaOptions = function(session, mat, input){
     shapeSel = NULL
   }
   if(!is.null(mat)){
-    npc = min(dim(mat))
+    npc = min(c(dim(mat), maxComponents))
   } else {
     npc = 1
   }
@@ -511,6 +518,8 @@ filterRows = function(session, mat, input, organism, annoGroupsCol){
     load(pwFile)
     rlist2 = rlist[rlist$term == input$uploadPbPathway, ]
     glist = rlist2$gene
+  } else if(input$uploadRowFiltering == 4){
+    glist = strsplit(input$uploadGeneList, "\\s+")[[1]]
   } else if(input$uploadRowFiltering %in% 2:3 & input$uploadNbrClusters >= 2 & input$uploadNbrClusters <= maxDimensionHeatmap){
     set.seed(52710953)
     km = kmeans(mat, centers = input$uploadNbrClusters)
@@ -524,33 +533,48 @@ filterRows = function(session, mat, input, organism, annoGroupsCol){
   } else {
     mat = NULL
   }
+  message = NULL
   if((input$uploadRowFiltering == 1 & input$uploadPbPathway != "") | 
+       (input$uploadRowFiltering == 4) |
        (input$uploadRowFiltering == 3 & input$uploadNbrClusters >= 2 & input$uploadNbrClusters <= 600)){
     if(input$uploadDataInput == 5){
       platf = strsplit(input$uploadPbDataset, "/")[[1]][1]
       targetPlatform = uploadPlatformTable$name[uploadPlatformTable$id == platf]
       safegconvert = failwith(data.frame(), gconvert, TRUE)
       gcon = safegconvert(glist, organism = organism, target = targetPlatform)
+      glist2 = toupper(glist)
       if(nrow(gcon) > 0){
+        gcon = gcon[order(gcon$alias.number, gcon$target.number), ] #keep original order
         if(all.is.numeric(rownames(mat))){
           rownames(mat) = str_c(targetPlatform, ":", rownames(mat))
+          glist2 = str_c(targetPlatform, ":", glist2)
         }
         m = match(toupper(rownames(mat)), toupper(gcon$target)) #different in newer gProfileR version
         w = which(!is.na(m))
+        w = w[order(m[!is.na(m)])] #sort based on original order
         if(length(w) > 0){
           mat = mat[w, , drop = FALSE]
           rownames(mat) = str_c(gcon[m[w], "name"], " (", rownames(mat), ")")
+          if(input$uploadRowFiltering == 1){
+            mat = mat[order(rownames(mat)), , drop = FALSE] #sort pathway genes alphabetically
+          }
         } else {
           mat = NULL
         }
       } else {
         mat = NULL
       }
+      glistRm = glist[which(!(glist2 %in% gcon$alias))]
     } else {
       mat = mat[rownames(mat) %in% glist, , drop = FALSE]
+      glistRm = glist[!(glist %in% rownames(mat))]
+    }
+    if(length(glistRm) > 0){
+      message = str_c("The following genes are not present in the dataset and were removed: ", 
+                      str_c(glistRm, collapse = ", "), ".")
     }
   }
-  mat
+  list(mat = mat, message = message)
 }
 
 annotationsFilters = function(anno, inputSaved, type, groups){
@@ -640,7 +664,12 @@ getTooltipTexts = function(anno, titles){
 
 plotPCA = function(data){
 	if(is.null(data)) return(list(NULL, 0, 0, message = NULL))
-	attach(data)
+	annoCol = data$annoCol
+  annoRow = data$annoRow
+  matPca = data$matPca
+	varTable = data$varTable
+  inputSaved = data$inputSaved
+  
   pcaInteractivity = toBoolean(inputSaved$pcaInteractivity)
 	pcaShowSampleIds = toBoolean(inputSaved$pcaShowSampleIds)
 	pcaShowEllipses = toBoolean(inputSaved$pcaShowEllipses)
@@ -785,7 +814,6 @@ plotPCA = function(data){
 	  q = q + geom_path(aes(shape = NULL), data = ellCoord, size = inputSaved$pcaEllipseLineWidth, linetype = inputSaved$pcaEllipseLineType, show_guide = FALSE)
 	}
 	
-	detach(data)
 	return(list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, 
               message = NULL, showEllipses = showEllipses))
 }
@@ -847,7 +875,13 @@ annoLevels = function(anno){
 
 plotHeatmap = function(data, filename = NA){
 	if(is.null(data)) return(frame())
-	attach(data)
+	matFinal = data$matFinal
+  annoCol = data$annoCol
+  annoRow = data$annoRow
+  inputSaved = data$inputSaved
+	hcRows = data$hcRows
+	hcCols = data$hcCols
+  
 	revScheme = toBoolean(inputSaved$hmRevScheme)
 	showNumbers = toBoolean(inputSaved$hmShowNumbers)
 	showRownames = toBoolean(inputSaved$hmShowRownames)
@@ -924,7 +958,6 @@ plotHeatmap = function(data, filename = NA){
     filename = filename, width = picwIn, height = pichIn, silent = is.na(filename)
 	)
   
-	detach(data)
 	return(list(ph = ph, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, message = NULL))
 }
 
