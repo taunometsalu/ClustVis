@@ -20,4 +20,4 @@ sudo docker run -d \
     taunometsalu/clustvis
 ```
 
-ClustVis should then be running on <myURL>:<myPort>.
+ClustVis should then be running on ```<myURL>:<myPort>```.
