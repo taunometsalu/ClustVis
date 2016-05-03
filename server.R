@@ -1,3 +1,6 @@
+#Author: Tauno Metsalu
+#Copyright: 2016 University of Tartu
+
 source("/srv/shiny-server/global.R")
 
 shinyServer(function(input, output, session) {
@@ -32,13 +35,9 @@ shinyServer(function(input, output, session) {
         if("annoCol" %in% names(data)){
           annoCol = data$annoCol
           annoRow = data$annoRow
-          nAnnoCol = data$nAnnoCol
-          nAnnoRow = data$nAnnoRow
         } else { #backward compatibility
           annoCol = data$anno
           annoRow = NULL
-          nAnnoCol = data$n
-          nAnnoRow = 0
         }
 				annoGroupsCol = data$annoGroupsCol
 				annoGroupsRow = data$annoGroupsRow
@@ -106,8 +105,7 @@ shinyServer(function(input, output, session) {
 				} else {
           message = NULL
 				}
-        l = list(annoCol = annoCol, annoRow = annoRow, mat = mat, 
-                 nAnnoCol = nAnnoCol, nAnnoRow = nAnnoRow, sep = sep, 
+        l = list(annoCol = annoCol, annoRow = annoRow, mat = mat, sep = sep, 
                  inputSaved = input, annoLevsTab = NULL, message = message, 
                  annoGroupsCol = annoGroupsCol, annoGroupsRow = annoGroupsRow)
 				return(l)
@@ -154,8 +152,6 @@ shinyServer(function(input, output, session) {
 				}
         annoCol = anno
 				annoRow = NULL
-        nAnnoCol = n
-				nAnnoRow = 0
         
 				org = input$uploadOrganism
         str = strsplit(org, " ")[[1]]
@@ -167,7 +163,6 @@ shinyServer(function(input, output, session) {
 				mat = fr$mat
         message = fr$message
 				return(list(annoCol = annoCol, annoRow = annoRow, mat = mat, 
-				            nAnnoCol = nAnnoCol, nAnnoRow = nAnnoRow, sep = ",", 
                     inputSaved = input, annoLevsTab = annoLevsTab, message = message,
 				            annoGroupsCol = annoGroupsCol, annoGroupsRow = annoGroupsRow))
 			} else {
@@ -228,7 +223,6 @@ shinyServer(function(input, output, session) {
 		    data3 = data2[(nAnnoCol + 1):nrow(data2), (nAnnoRow + 1):ncol(data2), drop = FALSE]
 		    data3int = data3; suppressWarnings(class(data3int) <- "integer")
 		    data3num = data3; suppressWarnings(class(data3num) <- "numeric")
-		    #intCells = !is.na(data3num) & ((data3int - round(data3num, 10)) == 0)
 		    intCells = is.na(data3num) | ((data3int - round(data3num, 10)) == 0)
         if(!all(intCells)){
 		      intRowLast = as.vector(intCells[nrow(intCells), ])
@@ -260,8 +254,7 @@ shinyServer(function(input, output, session) {
 			mat = apply(mat, 1:2, as.numeric)
 		}
 		annoGroupsCol = annoGroupsRow = NULL
-		return(list(annoCol = annoCol, annoRow = annoRow, mat = mat, 
-                nAnnoCol = nAnnoCol, nAnnoRow = nAnnoRow, sep = sep, 
+		return(list(annoCol = annoCol, annoRow = annoRow, mat = mat, sep = sep, 
                 inputSaved = input, annoLevsTab = NULL, message = message,
 		            annoGroupsCol = annoGroupsCol, annoGroupsRow = annoGroupsRow))
 	})
@@ -269,6 +262,7 @@ shinyServer(function(input, output, session) {
   setAnnoGroups = reactive({
     data = readData()
     if(is.null(data)) return(NULL)
+    if(logUsage && !is.null(data$mat)) sendToLog(data)
     
     #set default annotation groups:
     if(is.null(data$annoGroupsCol)){
@@ -331,10 +325,6 @@ shinyServer(function(input, output, session) {
       temp = data$annoGroupsCol
       data['annoGroupsCol'] = list(data$annoGroupsRow)
       data['annoGroupsRow'] = list(temp)
-      
-      temp = data$nAnnoCol
-      data$nAnnoCol = data$nAnnoRow
-      data$nAnnoRow = temp
     }
     
     isolate({
@@ -360,6 +350,17 @@ shinyServer(function(input, output, session) {
       values$procAnnoGroupsOld = input$procAnnoGroups
       values$annoGroupsColOld = values$data$annoGroupsCol
       values$annoGroupsRowOld = values$data$annoGroupsRow
+	    values$changeAllOld = getChangeAllCheckboxes(values$data$inputSaved,
+        setAnnoGroups()$annoCol, setAnnoGroups()$annoRow)
+      for(prefix in c("hm", "pca")){
+        if(is.null(values[[str_c(prefix, "ClickedObjectOld")]]) || is.null(input[[str_c(prefix, "ClickedObject")]]) || 
+             (values[[str_c(prefix, "ClickedObjectOld")]] != input[[str_c(prefix, "ClickedObject")]])){
+          values[[str_c(prefix, "ClickedObjectPrevious")]] = values[[str_c(prefix, "ClickedObjectOld")]]
+          values[[str_c(prefix, "ClickedTypePrevious")]] = values[[str_c(prefix, "ClickedTypeOld")]]
+        }
+        values[[str_c(prefix, "ClickedObjectOld")]] = input[[str_c(prefix, "ClickedObject")]]
+        values[[str_c(prefix, "ClickedTypeOld")]] = input[[str_c(prefix, "ClickedType")]]
+      }
     })
 	})
   
@@ -390,8 +391,10 @@ shinyServer(function(input, output, session) {
 	})
 	
 	output$uploadAnnoColTable = renderTable({
-		if(is.null(values$data$annoCol)) return(NULL)
-		cutMatrix(t(values$data$annoCol))
+	  withProgress(message = 'Loading the data, please wait ...', value = NULL, {
+	    if(is.null(values$data$annoCol)) return(NULL)
+	    cutMatrix(t(values$data$annoCol))
+	  })
 	})
   
   output$uploadAnnoRowInfo = renderPrint({
@@ -450,7 +453,9 @@ shinyServer(function(input, output, session) {
 	  isolate({
       updatePcaOptions(session, proc$matImputed, proc$inputSaved)
       updateHmOptions(session, proc$matImputed, colnames(proc$annoRow), proc$inputSaved$procAnno)
-      session$sendCustomMessage(type = 'sendEmpty', message = list()) #reset clicked object
+      #reset clicked objects:
+      session$sendCustomMessage(type = 'changeClicked', message = list(prefix = "hm", newObject = "", newType = ""))
+      session$sendCustomMessage(type = 'changeClicked', message = list(prefix = "pca", newObject = "", newType = ""))
     })
     proc
 	})
@@ -458,7 +463,7 @@ shinyServer(function(input, output, session) {
 	output$procWarnings = renderText({
 	  proc = getProc()
 	  validate(
-	    need(!is.null(proc), "No data found, please check processing options or revisit 'Data upload' tab!")
+	    need(!is.null(proc), "No data found, please check processing options or revisit 'Data import' tab!")
 	  )
 	  if(!is.null(proc$mat)){
 	    sd0r = proc$constRows
@@ -493,16 +498,15 @@ shinyServer(function(input, output, session) {
 	})
   
 	output$hmWarnings = renderText({
-	  if(!is.null(getProc())){
+	  proc = getProc()
+	  if(!is.null(proc$matImputed)){
 	    transp = getTransposed()
 	    if(!is.null(transp$matFinal)){
+	      gh = getHeatmap()
 	      validate(
 	        need(!toBoolean(transp$inputSaved$hmInteractivity) || (sum(dim(transp$matFinal)) <= maxTooltipsHm), 
-            str_c("The total number of rows and columns is more than ", maxTooltipsHm, ", showing static plot for performance reasons (no interactivity)."))
-        )
-        validate(
-          need(!toBoolean(transp$inputSaved$hmInteractivity) || (sum(dim(transp$matFinal)) + prod(dim(transp$matFinal)) <= maxTooltipsHm), 
-            str_c("The total number of tooltips would be more than ", maxTooltipsHm, ", keeping the tooltips only for row and column labels (not for each cell)."))
+            str_c("The total number of rows and columns is more than ", maxTooltipsHm, ", showing static plot for performance reasons (no interactivity).")),
+	        need(is.null(gh$message), gh$message)
         )
 	    } else {
 	      return(NULL)
@@ -512,43 +516,36 @@ shinyServer(function(input, output, session) {
     }
 	})
   
-  output$hmRcWarnings = output$pcaRcWarnings = renderText({
-    grc = getRowColPlot()
+  output$hmJitterWarnings = output$pcaJitterWarnings = renderText({
+    grc = getJitterPlot()
     if(is.null(grc)) return(NULL)
+    points = grc$points[!is.na(grc$points$value), , drop = FALSE]
     validate(
-      need(nrow(grc$points) <= maxTooltipsRCplot, 
-           str_c("More than ", maxTooltipsRCplot, " points, showing static plot for performance reasons (no interactivity)."))
+      need(nrow(points) <= maxTooltipsJitterPlot, 
+           str_c("More than ", maxTooltipsJitterPlot, " points, showing static plot for performance reasons (no interactivity)."))
     )
   })
 	
 	output$procSizeTable = renderTable({
-	  getProc()$sizeTable
+	  withProgress(message = 'Loading the data, please wait ...', value = NULL, {
+	    getProc()$sizeTable
+	  })
 	})
   
 	output$procNAsRows = renderTable({
-	  proc = getProc()
-	  if(!is.null(proc$mat)){
-	    gp = proc$naTableRows
-	    validate(
-	      need(!is.null(gp), "No NAs in rows.")
-	    )
-	    return(cutMatrix(gp, digits = 0))
-	  } else {
-	    return(NULL)
-	  }
+	  gp = getProc()$naTableRows
+	  validate(
+	    need(!is.null(gp), "No NAs in rows.")
+	  )
+	  cutMatrix(gp, digits = 0)
 	})
 	
 	output$procNAsCols = renderTable({
-	  proc = getProc()
-	  if(!is.null(proc$mat)){
-	    gp = proc$naTableCols
-	    validate(
-	      need(!is.null(gp), "No NAs in columns.")
-	    )
-	    return(cutMatrix(gp, digits = 0))
-	  } else {
-	    return(NULL)
-	  }
+	  gp = getProc()$naTableCols
+    validate(
+      need(!is.null(gp), "No NAs in columns.")
+    )
+    cutMatrix(gp, digits = 0)
 	})
 	
 	output$procPcaVarInfo = renderPrint({
@@ -600,7 +597,7 @@ shinyServer(function(input, output, session) {
 	getPCA = reactive({
 		data = getProc()
 		validate(
-			need(!is.null(data), "No data found, please revisit 'Data upload' tab!")
+			need(!is.null(data$matPca), "No data found, please revisit 'Data import' or 'Data pre-processing' tab!")
 		)
     plot = plotPCA(data)
 		validate(
@@ -614,57 +611,60 @@ shinyServer(function(input, output, session) {
 	}, height = function() getPCA()$pich, width = function() getPCA()$picw)
 	
   output$pca = renderUI({
-    gp = getPCA()
-    if(is.null(gp)) return(NULL)
-    proc = getProc()
-    if(toBoolean(proc$inputSaved$pcaInteractivity) && (nrow(proc$matPca) <= maxTooltipsPCA)){
-      outfile = tempfile(pattern = "Rplots_", fileext = '.png', tmpdir = sessPath)
-      dev.new(file = outfile, width = gp$picwIn, height = gp$pichIn)
-      print(gp$q)
-      grid.force() #suggested by Paul Murrell
-      names = grid.ls(print = FALSE)$name
-      grobPts = names[searchPrefix("geom_point", names)]
-      
-      titles = getTooltipTitles(mapping = proc$mappingCol, names = colnames(proc$mat))
-      tooltips = getTooltipTexts(anno = proc$annoCol, titles = titles)
-      
-      if(hasAnno(proc$annoCol, "plot_link")){
-        prefix = "link"
-        grid.hyperlink(grobPts, href = proc$annoCol$plot_link, show = "new", group = FALSE)
+    withProgress(message = 'Loading the plot, please wait ...', value = NULL, {
+      gp = getPCA()
+      if(is.null(gp)) return(NULL)
+      proc = getProc()
+      if(toBoolean(proc$inputSaved$pcaInteractivity) && (nrow(proc$matPca) <= maxTooltipsPCA)){
+        outfile = tempfile(pattern = "Rplots_", fileext = '.png', tmpdir = sessPath)
+        dev.new(file = outfile, width = gp$picwIn, height = gp$pichIn)
+        print(gp$q)
+        grid.force() #suggested by Paul Murrell
+        names = grid.ls(print = FALSE)$name
+        grobPts = names[searchPrefix("geom_point", names)]
+        
+        titles = getTooltipTitles(mapping = proc$mappingCol, names = colnames(proc$mat))
+        tooltips = getTooltipTexts(anno = proc$annoCol, titles = titles)
+        
+        if(hasAnno(proc$annoCol, linkAnno)){
+          prefix = "link"
+          links = as.vector(proc$annoCol[[linkAnno]])
+          grid.hyperlink(grobPts, href = links, show = rep("new", length(links)), group = FALSE)
+        } else {
+          prefix = "pcaCol"
+        }
+        
+        grid.garnish(grobPts, `data-toggle` = rep("tooltip", length(tooltips)), 
+                     title = tooltips, class = rep(prefix, length(tooltips)), 
+                     id = str_c(str_c(prefix, "-"), 1:length(tooltips)), group = FALSE)
+        
+        svg = grid.export(NULL, strict = FALSE, indent = FALSE, annotate = FALSE)$svg
+        dev.off(); unlink(outfile)
+        res = HTML(toString.XMLNode(svg))
       } else {
-        prefix = "pcaCol"
+        res = plotOutput("pcaStatic", height = "100%", width = "100%")
       }
-      
-      grid.garnish(grobPts, `data-toggle` = rep("tooltip", length(tooltips)), title = tooltips, 
-                   class = rep(prefix, length(tooltips)), 
-                   id = str_c(str_c(prefix, "-"), 1:length(tooltips)), group = FALSE)
-
-      svg = grid.export(NULL, strict = FALSE, indent = FALSE, annotate = FALSE)$svg
-      dev.off(); unlink(outfile)
-      res = HTML(toString.XMLNode(svg))
-    } else {
-      res = plotOutput("pcaStatic", height = "100%", width = "100%")
-    }
-    res
+      res
+    })
   })
   
 	#heatmap
   getTransposed = reactive({
     data = getProc()
-    validate(
-      need(!is.null(data), "No data found, please revisit 'Data upload' tab!")
-    )
-    validate(
-      need(nrow(data$matImputed) <= maxDimensionHeatmap, 
-        str_c("Data matrices with more than ", maxDimensionHeatmap, 
-        " rows are currently not supported, please revisit 'Data upload' tab and change row filtering options or upload a smaller file!")),
-      need(ncol(data$matImputed) <= maxDimensionHeatmap, 
-        str_c("Data matrices with more than ", maxDimensionHeatmap,
-        " columns are currently not supported, please revisit 'Data upload' tab and filter some columns or collapse columns with similar annotations on 'Data pre-processing' tab or upload a smaller file!"))
-    )
     inputSaved = data$inputSaved
     matImputed = data$matImputed
     matScaled = data$matScaled
+    validate(
+      need(!is.null(matImputed), "No data found, please revisit 'Data import' or 'Data pre-processing' tab!")
+    )
+    validate(
+      need(nrow(matImputed) <= maxDimensionHeatmap, 
+        str_c("Data matrices with more than ", maxDimensionHeatmap, 
+        " rows are currently not supported, please revisit 'Data import' tab and change row filtering options or upload a smaller file!")),
+      need(ncol(matImputed) <= maxDimensionHeatmap, 
+        str_c("Data matrices with more than ", maxDimensionHeatmap,
+        " columns are currently not supported, please revisit 'Data import' tab and filter some columns or collapse columns with similar annotations on 'Data pre-processing' tab or upload a smaller file!"))
+    )
     if(toBoolean(inputSaved$hmShowImputed)){
       matFinal = matImputed
     } else {
@@ -733,9 +733,6 @@ shinyServer(function(input, output, session) {
 		png(outfile, units = "in", res = 300, width = input$hmPlotWidth / 2.54, 
         height = input$hmPlotRatio * input$hmPlotWidth / 2.54)
 		gh = getHeatmap()
-		validate(
-		  need(is.null(gh$message), gh$message)
-		)
 		if(!is.null(gh)){
       grid.newpage()
       grid.draw(gh$ph$gtable)
@@ -745,148 +742,172 @@ shinyServer(function(input, output, session) {
 	}, deleteFile = TRUE)
   
 	output$heatmap = renderUI({
-	  gh = getHeatmap()
-	  if(is.null(gh)) return(NULL)
-    transp = getTransposed()
-	  if(toBoolean(transp$inputSaved$hmInteractivity) && (sum(dim(transp$matFinal)) <= maxTooltipsHm)){
-	    outfile = tempfile(pattern = "Rplots_", fileext = '.pdf', tmpdir = sessPath)
-	    dev.new(file = outfile, width = gh$picwIn, height = gh$pichIn)
-	    grid.newpage()
-	    grid.draw(gh$ph$gtable)
-	    grid.force() #suggested by Paul Murrell
-	    names = grid.ls(print = FALSE)$name
-	    
-	    titlesRows = getTooltipTitles(mapping = transp$mappingRow, names = rownames(transp$matFinal), rows = TRUE)
-	    titlesCols = getTooltipTitles(mapping = transp$mappingCol, names = colnames(transp$matFinal))
-      if(!is.na(gh$ph$tree_row)){
-        rnOrder = gh$ph$tree_row$order
-      } else {
-        rnOrder = 1:nrow(transp$matFinal)
-      }
-	    if(!is.na(gh$ph$tree_col)){
-	      cnOrder = gh$ph$tree_col$order
+	  withProgress(message = 'Loading the plot, please wait ...', value = NULL, {
+	    gh = getHeatmap()
+	    if(is.null(gh)) return(NULL)
+	    transp = getTransposed()
+	    if(toBoolean(transp$inputSaved$hmInteractivity) && (sum(dim(transp$matFinal)) <= maxTooltipsHm)){
+	      outfile = tempfile(pattern = "Rplots_", fileext = '.pdf', tmpdir = sessPath)
+        dev.new(file = outfile, width = gh$picwIn, height = gh$pichIn)
+	      grid.newpage()
+	      grid.draw(gh$ph$gtable)
+	      grid.force() #suggested by Paul Murrell
+	      names = grid.ls(print = FALSE)$name
+	      
+	      titlesRows = getTooltipTitles(mapping = transp$mappingRow, names = rownames(transp$matFinal), rows = TRUE)
+	      titlesCols = getTooltipTitles(mapping = transp$mappingCol, names = colnames(transp$matFinal))
+	      if(!is.na(gh$ph$tree_row)){
+	        rnOrder = gh$ph$tree_row$order
+	      } else {
+	        rnOrder = 1:nrow(transp$matFinal)
+	      }
+	      if(!is.na(gh$ph$tree_col)){
+	        cnOrder = gh$ph$tree_col$order
+	      } else {
+	        cnOrder = 1:ncol(transp$matFinal)
+	      }
+	      annoRowOrdered = transp$annoRow[rnOrder, , drop = FALSE]
+	      annoColOrdered = transp$annoCol[cnOrder, , drop = FALSE]
+	      titlesRowsOrdered = titlesRows[rnOrder]
+	      titlesColsOrdered = titlesCols[cnOrder]
+	      tooltipsRows = getTooltipTexts(anno = annoRowOrdered, titles = titlesRowsOrdered)
+	      tooltipsCols = getTooltipTexts(anno = annoColOrdered, titles = titlesColsOrdered)
+	      tooltipsTable = expand.grid(tooltipsRows, tooltipsCols, stringsAsFactors = FALSE)
+	      tooltips = str_c(str_c(tooltipsTable[, 1], "<br /><br />"), tooltipsTable[, 2])
+	      cellIdsTable = expand.grid(1:length(tooltipsRows), 1:length(tooltipsCols), stringsAsFactors = FALSE)
+	      cellIds = str_c(str_c(cellIdsTable[, 1], "-"), cellIdsTable[, 2])
+	      
+	      grobCells = names[searchPrefix("matrix", names)]
+	      grobCellsSub = childNames(grid.get(grobCells)) #one more layer in between
+	      grobRows = names[searchPrefix("row_names", names)]
+	      grobCols = names[searchPrefix("col_names", names)]
+	      
+	      grid.garnish(grobRows, `data-toggle` = rep("tooltip", length(tooltipsRows)), title = tooltipsRows, 
+	                   class = rep("hmRow", length(tooltipsRows)), 
+	                   id = str_c("hmRow-", 1:length(tooltipsRows)), group = FALSE)
+	      grid.garnish(grobCols, `data-toggle` = rep("tooltip", length(tooltipsCols)), title = tooltipsCols, 
+	                   class = rep("hmCol", length(tooltipsCols)), 
+	                   id = str_c("hmCol-", 1:length(tooltipsCols)), group = FALSE)
+	      
+	      grid.garnish(grobCellsSub, `data-toggle` = rep("tooltip", length(tooltips)), title = tooltips, 
+	                   class = rep("hmCell", length(tooltips)), 
+	                   id = str_c("hmCell-", cellIds), group = FALSE)
+	      
+	      svg = grid.export(NULL, strict = FALSE, indent = FALSE, annotate = FALSE)$svg
+	      dev.off(); unlink(outfile)
+	      res = HTML(toString.XMLNode(svg))
 	    } else {
-	      cnOrder = 1:ncol(transp$matFinal)
+	      res = imageOutput("heatmapStatic", height = "100%", width = "100%")
 	    }
-      annoRowOrdered = transp$annoRow[rnOrder, , drop = FALSE]
-      annoColOrdered = transp$annoCol[cnOrder, , drop = FALSE]
-	    titlesRowsOrdered = titlesRows[rnOrder]
-	    titlesColsOrdered = titlesCols[cnOrder]
-	    tooltipsRows = getTooltipTexts(anno = annoRowOrdered, titles = titlesRowsOrdered)
-	    tooltipsCols = getTooltipTexts(anno = annoColOrdered, titles = titlesColsOrdered)
-	    tooltipsTable = expand.grid(tooltipsRows, tooltipsCols, stringsAsFactors = FALSE)
-	    tooltips = str_c(str_c(tooltipsTable[, 1], "<br /><br />"), tooltipsTable[, 2])
-      cellIdsTable = expand.grid(1:length(tooltipsRows), 1:length(tooltipsCols), stringsAsFactors = FALSE)
-      cellIds = str_c(str_c(cellIdsTable[, 1], "-"), cellIdsTable[, 2])
-      
-	    grobCells = names[searchPrefix("matrix", names)]
-	    grobCellsSub = childNames(grid.get(grobCells)) #one more layer in between
-	    grobRows = names[searchPrefix("row_names", names)]
-	    grobCols = names[searchPrefix("col_names", names)]
-      
-	    grid.garnish(grobRows, `data-toggle` = rep("tooltip", length(tooltipsRows)), title = tooltipsRows, 
-	                 class = rep("hmRow", length(tooltipsRows)), 
-	                 id = str_c("hmRow-", 1:length(tooltipsRows)), group = FALSE)
-	    grid.garnish(grobCols, `data-toggle` = rep("tooltip", length(tooltipsCols)), title = tooltipsCols, 
-	                 class = rep("hmCol", length(tooltipsCols)), 
-	                 id = str_c("hmCol-", 1:length(tooltipsCols)), group = FALSE)
-      if((sum(dim(transp$matFinal)) + prod(dim(transp$matFinal)) <= maxTooltipsHm)){
-        grid.garnish(grobCellsSub, `data-toggle` = rep("tooltip", length(tooltips)), title = tooltips, 
-                     class = rep("hmCell", length(tooltips)), 
-                     id = str_c("hmCell-", cellIds), group = FALSE)
-      }
-
-	    svg = grid.export(NULL, strict = FALSE, indent = FALSE, annotate = FALSE)$svg
-	    dev.off(); unlink(outfile)
-	    res = HTML(toString.XMLNode(svg))
-	  } else {
-	    res = imageOutput("heatmapStatic", height = "100%", width = "100%")
-	  }
-    res
-	})
-
-	getRowColPlot = reactive({
-	  plotRowCol(getClust(), values$data$mat)
+	    res
+	  })
 	})
   
-	output$hmRowColPlotStatic = output$pcaRowColPlotStatic = renderPlot({
-	  print(getRowColPlot()$q)
-	}, height = function() getRowColPlot()$pich, width = function() getRowColPlot()$picw)
+	getJitterTable = reactive({
+    tableJitter(getClust(), values$data$mat, findPrefix(input$tabs1))
+	})
+
+	getJitterPlot = reactive({
+    plotJitter(getJitterTable())
+	})
   
-	output$hmRowColPlot = output$pcaRowColPlot = renderUI({
-	  grc = getRowColPlot()
-	  if(is.null(grc)) return(NULL)
-	  points = grc$points
-	  if(nrow(points) <= maxTooltipsRCplot){
-	    original = values$data$mat
-	    annoRow = values$data$annoRow
-	    annoCol = values$data$annoCol
-	    
-	    inputSaved = values$data$inputSaved
-	    
-	    if(all(points$rn %in% colnames(original)) && all(points$cn %in% rownames(original))){
-	      rn = points$cn
-	      cn = points$rn
-	    } else if(all(points$rn %in% rownames(original)) && all(points$cn %in% colnames(original))){
-	      rn = points$rn
-	      cn = points$cn
-	    } else {
-	      return(NULL)
-	    }
-	    
-	    if(!is.null(annoRow)){
-	      annoRowSub = annoRow[match(rn, rownames(annoRow)), , drop = FALSE]
-	    } else {
-	      annoRowSub = NULL
-	    }
-	    if(!is.null(annoCol)){
-	      keep = c(inputSaved$procAnno, intersect(colnames(annoCol), interactivityAnnos))
-	      if(length(keep) > 0){
-	        annoColSub = annoCol[match(cn, rownames(annoCol)), keep, drop = FALSE]
+	output$hmJitterPlotStatic = output$pcaJitterPlotStatic = renderPlot({
+	  print(getJitterPlot()$q)
+	}, height = function() getJitterPlot()$pich, width = function() getJitterPlot()$picw)
+  
+	output$hmJitterPlot = output$pcaJitterPlot = renderUI({
+	  withProgress(message = 'Loading the plot, please wait ...', value = NULL, {
+	    grc = getJitterPlot()
+	    if(is.null(grc)) return(NULL)
+	    points = grc$points[!is.na(grc$points$value), , drop = FALSE] #NAs confuse tooltip generation
+	    #if(nrow(points) == 0) return(NULL)
+	    validate(need(nrow(points) > 0, "\nOnly missing values, no plot shown."))
+	    if((nrow(points) <= maxTooltipsJitterPlot) & 
+	         (!(values$data$inputSaved[[str_c(grc$plotType, "JitterPlotType")]] %in% c("violin", "box")))){
+	      annoRow = values$data$annoRow
+	      annoCol = values$data$annoCol
+	      inputSaved = values$data$inputSaved
+	      
+	      if(!is.null(annoRow)){
+	        annoRowSub = annoRow[match(points$rnOrig, rownames(annoRow)), , drop = FALSE]
+	      } else {
+	        annoRowSub = NULL
+	      }
+	      if(!is.null(annoCol)){
+	        keep = c(inputSaved$procAnno, intersect(colnames(annoCol), interactivityAnnos))
+	        if(length(keep) > 0){
+	          annoColSub = annoCol[match(points$cnOrig, rownames(annoCol)), keep, drop = FALSE]
+	        } else {
+	          annoColSub = NULL
+	        }
 	      } else {
 	        annoColSub = NULL
 	      }
+	      
+	      outfile = tempfile(pattern = "Rplots_", fileext = '.pdf', tmpdir = sessPath)
+	      dev.new(file = outfile, width = grc$picwIn, height = grc$pichIn, units = "in", res = 72)
+	      print(grc$q)
+	      grid.force()
+	      names = grid.ls(print = FALSE)$name
+	      grobPts = c(names[searchPrefix(c("geom_jitter"), names)],
+	                  names[searchPrefix(c("geom_point"), names)])
+	      
+	      titlesRows = getTooltipTitles(mapping = NULL, names = points$rnOrig, rows = TRUE)
+	      tooltipsRows = getTooltipTexts(anno = annoRowSub, titles = titlesRows)
+	      titlesCols = getTooltipTitles(mapping = NULL, names = points$cnOrig)
+	      tooltipsCols = getTooltipTexts(anno = annoColSub, titles = titlesCols)
+	      tooltips = str_c(str_c(tooltipsRows, "<br /><br />"), tooltipsCols)
+	      
+	      #check column link in the first place, then row link:
+	      if(hasAnno(annoColSub, linkAnno)){
+	        prefix = "link"
+	        links = as.vector(annoColSub[[linkAnno]])
+	        grid.hyperlink(grobPts, href = links, show = rep("new", length(links)), group = FALSE)
+	      } else if(hasAnno(annoRowSub, linkAnno)){
+	        prefix = "link"
+	        links = as.vector(annoRowSub[[linkAnno]])
+	        grid.hyperlink(grobPts, href = links, show = rep("new", length(links)), group = FALSE)
+	      } else {
+	        prefix = "nolink"
+	      }
+	      #return(str_c(names, collapse = ", "))
+	      grid.garnish(grobPts, `data-toggle` = rep("tooltip", length(tooltips)), 
+	                   title = tooltips, class = rep(prefix, length(tooltips)), 
+	                   id = str_c(str_c(prefix, "-"), 1:length(tooltips)), group = FALSE)
+	      
+	      if(length(grc$nextLinks) == length(unique(grc$points$gr))){ #if not cell plot
+	        grobX = names[searchPrefix("axis.2-1-2-1", names)]
+	        tooltipsX = rep("", length(grc$nextLinks)) #no tooltips
+	        grid.garnish(grobX, `data-toggle` = rep("tooltip", length(tooltipsX)), 
+	                     class = rep(str_c(grc$plotType, "Cell"), length(tooltipsX)), 
+	                     id = grc$nextLinks, group = FALSE)
+	      }
+	      
+	      svg = grid.export(NULL, strict = FALSE, indent = FALSE, annotate = FALSE, res = 72)$svg
+	      dev.off(); unlink(outfile)
+	      res = HTML(toString.XMLNode(svg))
 	    } else {
-	      annoColSub = NULL
+	      res = tagList(
+	        imageOutput(str_c(grc$plotType, "JitterPlotStatic"), height = grc$pich, width = grc$picw),
+	        HTML(str_c("<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='", 
+	                   grc$picw, "px' height='", grc$pich, "px' viewBox='0 0 ", grc$picw, " ", grc$pich, 
+	                   "' version='1.1'></svg>")) #to avoid overlapping with table
+	      )
 	    }
-	    
-	    outfile = tempfile(pattern = "Rplots_", fileext = '.pdf', tmpdir = sessPath)
-	    dev.new(file = outfile, width = grc$picwIn, height = grc$pichIn)
-	    print(grc$q)
-	    grid.force()
-	    names = grid.ls(print = FALSE)$name
-	    grobPts = names[searchPrefix("geom_jitter", names)]
-	    
-	    titlesRows = getTooltipTitles(mapping = NULL, names = rn, rows = TRUE)
-	    tooltipsRows = getTooltipTexts(anno = annoRowSub, titles = titlesRows)
-	    titlesCols = getTooltipTitles(mapping = NULL, names = cn)
-	    tooltipsCols = getTooltipTexts(anno = annoColSub, titles = titlesCols)
-	    tooltips = str_c(str_c(tooltipsRows, "<br /><br />"), tooltipsCols)
-	    
-	    #check column link in the first place, then row link:
-	    if(hasAnno(annoColSub, "plot_link")){
-        prefix = "link"
-	      grid.hyperlink(grobPts, href = annoColSub$plot_link, show = "new", group = FALSE)
-	    } else if(hasAnno(annoRowSub, "plot_link")){
-	      prefix = "link"
-	      grid.hyperlink(grobPts, href = annoRowSub$plot_link, show = "new", group = FALSE)
-	    } else {
-	      prefix = "nolink"
-	    }
-      
-	    grid.garnish(grobPts, `data-toggle` = rep("tooltip", length(tooltips)), title = tooltips, 
-	                 class = rep(prefix, length(tooltips)), 
-	                 id = str_c(str_c(prefix, "-"), 1:length(tooltips)),
-	                 group = FALSE)
-	    
-	    svg = grid.export(NULL, strict = FALSE, indent = FALSE, annotate = FALSE)$svg
-	    dev.off(); unlink(outfile)
-	    res = HTML(toString.XMLNode(svg))
-	  } else {
-	    res = imageOutput(str_c(grc$plotType, "RowColPlotStatic"), height = "100%", width = "100%")
-	  }
-    res
+	    res
+	  })
 	})
+  
+  output$hmJitterTable = output$pcaJitterTable = renderDataTable({
+    grt = getJitterTable()
+    if(is.null(grt)) return(NULL)
+    points = grt$points[, c("rnOrig", "cnOrig", "gr", "value")]
+    points = points[order(points$gr, points$value, na.last = FALSE), ]
+    points$rnOrig = addLinks(v = points$rnOrig, anno = values$data$annoRow)
+    points$cnOrig = addLinks(v = points$cnOrig, anno = values$data$annoCol)
+    colnames(points) = c("Row ID before processing", "Column ID before processing", "Group ID", "Value")
+    points
+  }, options = helpTablesOptions, escape = FALSE)
   
 	#export
 	output$exportSaveSettingsText = renderPrint({
@@ -1068,8 +1089,9 @@ shinyServer(function(input, output, session) {
 	observe({
 	  d = values$data
 	  if(!is.null(d)){
-	    updateNumericInput(session, "uploadNbrColAnnos", value = d$nAnnoCol)
-	    updateNumericInput(session, "uploadNbrRowAnnos", value = d$nAnnoRow)
+      if(is.null(d$sep)) d$sep = ","
+	    updateNumericInput(session, "uploadNbrColAnnos", value = nAnno(d$annoCol))
+	    updateNumericInput(session, "uploadNbrRowAnnos", value = nAnno(d$annoRow))
 	    updateRadioButtons(session, "uploadFileSep", selected = switch(d$sep, "," = '1', "\t" = '2', ";" = '3'))
 	  }
 	})
@@ -1087,7 +1109,7 @@ shinyServer(function(input, output, session) {
 		}
 		if(var %in% c("s", "p")){
 			id = search[[var]]
-			updateTabsetPanel(session, "tabs1", selected = "Data upload")
+			updateTabsetPanel(session, "tabs1", selected = "Data import")
 			updateRadioButtons(session, "uploadDataInput", selected = sel)
 			updateTextInput(session, "uploadSettingsId", value = id)
 		}
@@ -1146,39 +1168,62 @@ shinyServer(function(input, output, session) {
     }
 	})
   
+  #checkbox "change all levels"
+  observe({
+    annoCol = setAnnoGroups()$annoCol
+    annoRow = setAnnoGroups()$annoRow
+    grNew = getChangeAllCheckboxes(values$data$inputSaved, annoCol, annoRow)
+    grOld = values$changeAllOld
+    #which checkbox has changed state (one at a time)
+    if(!is.null(grNew) & !is.null(grOld)){
+      checked = which(grNew & !grOld)
+      unchecked = which(!grNew & grOld)
+      if(length(checked) > 0){
+        levCol = lapply(annoCol, function(x) names(findCounts(x)))
+        levRow = lapply(annoRow, function(x) names(findCounts(x)))
+        sel = c(levCol, levRow)[[checked[1]]]
+        updateCheckboxGroupInput(session, str_c(names(checked[1]), "tracksub"), selected = sel)
+      } else if(length(unchecked) > 0){
+        updateCheckboxGroupInput(session, str_c(names(unchecked[1]), "tracksub"), selected = character(0))
+      }
+    }
+  })
+  
 	observeEvent(input$hmBackButton, {
-	  session$sendCustomMessage(type = 'sendEmpty', message = list())
+	  session$sendCustomMessage(type = 'changeClicked', message = list(prefix = "hm", newObject = "", newType = ""))
 	})
   
 	observeEvent(input$pcaBackButton, {
-	  session$sendCustomMessage(type = 'sendEmpty', message = list())
+	  session$sendCustomMessage(type = 'changeClicked', message = list(prefix = "pca", newObject = "", newType = ""))
+	})
+  
+	observeEvent(input$hmBackPreviousButton, {
+	  session$sendCustomMessage(type = 'changeClicked', 
+      message = list(prefix = "hm", newObject = values$hmClickedObjectPrevious, newType = values$hmClickedTypePrevious))
+	})
+  
+	observeEvent(input$pcaBackPreviousButton, {
+	  session$sendCustomMessage(type = 'changeClicked', 
+	    message = list(prefix = "pca", newObject = values$pcaClickedObjectPrevious, newType = values$pcaClickedTypePrevious))
 	})
   
 	#generate filtering options
 	#use original unfiltered data for defining groups
 	output$uploadColumnFiltersAnno = renderUI({
 		data = setAnnoGroups()
-    if(!identical(data$annoGroupsCol, values$annoGroupsColOld)){
-      saved = list()
-    } else {
-      saved = data$inputSaved
-    }
+    saved = findSaved(data, values, "Col")
     annotationsFilters(data$annoCol, saved, type = "Column", data$annoGroupsCol)
 	})
   
 	output$uploadRowFiltersAnno = renderUI({
 	  data = setAnnoGroups()
-	  if(!identical(data$annoGroupsRow, values$annoGroupsRowOld)){
-	    saved = list()
-	  } else {
-	    saved = data$inputSaved
-	  }
+	  saved = findSaved(data, values, "Row")
 	  annotationsFilters(data$annoRow, saved, type = "Row", data$annoGroupsRow)
 	})
 	
-	output$legendPCA <- renderUI({
+	output$legendPCA = renderUI({
 	  data = getProc()
-    if(!is.null(data)){
+    if(!is.null(data$matPca)){
       leg = c()
       if(data$inputSaved$procMethodAgg != "no collapse"){
         leg = append(leg, c("Columns with similar annotations are collapsed by taking ", 
@@ -1197,12 +1242,14 @@ shinyServer(function(input, output, session) {
       leg = append(leg, c("N = ", nrow(data$matPca), " data points."))
       #http://stackoverflow.com/questions/23233497/outputting-multiple-lines-of-text-with-rendertext-in-r-shiny
       return(HTML("<h5>Caption example</h5><p>", str_c(leg, collapse = ""), "</p>"))
+    } else {
+      return(NULL)
     }
 	})
   
-	output$legendHeatmap <- renderUI({
+	output$legendHeatmap = renderUI({
 	  data = getProc()
-    if(!is.null(data) && all(dim(data$matImputed) <= maxDimensionHeatmap)){
+    if(!is.null(data$matImputed) && all(dim(data$matImputed) <= maxDimensionHeatmap)){
       leg = c()
       if(data$inputSaved$procMethodAgg != "no collapse"){
         leg = append(leg, c(changeIfTransposed("Columns", data$inputSaved), " with similar annotations are collapsed by taking ", data$inputSaved$procMethodAgg, " inside each group. "))
@@ -1215,6 +1262,7 @@ shinyServer(function(input, output, session) {
         leg = append(leg, capitalize(scaling))
       }
       meth = names(procMeth)[match(data$inputSaved$procMethod, procMeth)]
+      if(meth == "SVD with imputation") meth = "Imputation"
       if(sum(is.na(data$mat)) > 0){
         leg = append(leg, c(meth, " is used for missing value estimation. "))
       }
@@ -1232,7 +1280,12 @@ shinyServer(function(input, output, session) {
           leg = append(leg, c("Columns are clustered using ", distLabelCols, " distance and ", linkLabelCols, " linkage. "))
         }
       }
+      n = dim(data$matImputed)
+      if(toBoolean(data$inputSaved$hmTransposeHeatmap)) n = rev(n)
+      leg = append(leg, str_c(str_c(n, c(" rows", " columns.")), collapse = ", "))
       return(HTML("<h5>Caption example</h5><p>", str_c(leg, collapse = ""), "</p>"))
+    } else {
+      return(NULL)
     }
 	})
   

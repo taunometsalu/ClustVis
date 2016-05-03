@@ -1,14 +1,13 @@
+#Author: Tauno Metsalu
+#Copyright: 2016 University of Tartu
+
 path = "/srv/shiny-server/" #path of this file
 libPath = "/usr/local/lib/R/site-library/" #path of R libraries
 sessPathLarge = "/srv/settings_large/" #where to save settings with large datasets
 sessPath = "/srv/settings/" #where to save settings
-cachePath = "/srv/data_cache/" #path of .RData files
 pbPathPrefix = "/srv/data_pb/" #path of MEM files
 
 .libPaths(libPath)
-options(stringsAsFactors = FALSE)
-options(shiny.trace = TRUE)
-
 library(stringr)
 library(RNetCDF)
 library(shiny)
@@ -25,10 +24,10 @@ library(gtable)
 library(ggplot2)
 library(Cairo) #nicer ggplot2 output
 library(XML)
+library(grid)
 library(gridSVG)
 library(shinyjs)
 library(svglite) #faster SVG generation
-#devtools::install_github("taunometsalu/pheatmap")
 library(pheatmap)
 
 toolname = "clustvis"
@@ -38,6 +37,7 @@ fakeAnno = " " #placeholder annotation (if annotations are missing)
 coef = 96 / 72
 dotsPerCm = coef * 72 / 2.54 #how many points per cm
 noClust = "no clustering"
+changeAll = "change all levels" #label for row/column filtering menu
 clustDists = c(noClust, "correlation", "euclidean", "maximum", "manhattan", "canberra", "binary", "minkowski")
 names(clustDists) = c(noClust, "correlation", "Euclidean", "maximum", "Manhattan", "Canberra", "binary", "Minkowski")
 clustDists = clustDists[clustDists != "minkowski"] #it is already covered by special cases
@@ -68,7 +68,12 @@ tooltipPlace = "right"
 tooltipOptions = list(container = "body") #https://github.com/ebailey78/shinyBS/issues/15
 useSelectize = FALSE #https://github.com/ebailey78/shinyBS/issues/7
 shapeList = c("letters", "various")
-interactivityAnnos = c("plot_tooltip", "plot_link") #reserved annotation names
+#reserved annotation names:
+tooltipAnno = "plot_tooltip"
+linkAnno = "plot_link"
+interactivityAnnos = c(tooltipAnno, linkAnno)
+titleSufix = "" #sufix in the title for other editions
+
 maxCharactersAnnotations = 20 #how many characters to show for long annotations - to cut too long names
 maxDimensionHeatmap = 1200 #how large matrix we allow for heatmap (clustering and plotting a large matrix will be slow)
 maxComponents = 100 #maximum number of principal components to calculate (more will make it too slow)
@@ -76,23 +81,61 @@ maxComponents = 100 #maximum number of principal components to calculate (more w
 #if greater than that, falls back to static plot and gives warning message
 maxTooltipsPCA = 400
 maxTooltipsHm = 80
-maxTooltipsRCplot = 100
+maxTooltipsJitterPlot = 100
 
 #maximum number of levels allowed for color and shape on PCA plot and heatmap (too many levels can make rendering slow and output ugly):
 maxColorLevels = 8 #for PCA plot
 maxShapeLevels = 62 #for PCA plot
 maxAnnoLevels = 30 #for heatmap
+maxLabelLengthJitterplot = 35 #maximum length of the label on jitterplot (in characters), to avoid very long names when columns are aggregated
+maxUploadMB = 2 #maximum uploaded file size in MB
+
+logUsage = TRUE #whether to log size of datasets
+logFile = str_c(sessPath, "shiny-server-matrix-size.log")
+if(logUsage && !file.exists(logFile)) cat(str_c(c("time", "input", "nrow", "ncol", "edition"), collapse = ";"), "\n", append = TRUE, file = logFile)
+
+#override parameters if running different edition of ClustVis
+find = c("UA-63396304-1", "UA-63396304-2", "UA-63396304-3")
+replace = c("original", "test", "large data")
+clustvisEdition = mapvalues(Sys.getenv("SHINY_GAID"), find, replace , warn_missing = FALSE)
+if(!(clustvisEdition %in% replace)) clustvisEdition = "custom"
+if(clustvisEdition != "original"){
+  maxDimensionHeatmap = 2400
+  maxTooltipsPCA = 600
+  maxTooltipsHm = 120
+  maxTooltipsJitterPlot = 150
+  maxUploadMB = 15
+  titleSufix = str_c(" - ", clustvisEdition, " edition")
+}
+
+#http://stackoverflow.com/questions/18037737/how-to-change-maximum-upload-size-exceeded-restriction-in-shiny-and-save-user
+options(shiny.maxRequestSize = maxUploadMB * 1024 ^ 2)
+options(stringsAsFactors = FALSE)
+setwd(sessPath)
+
 gprofDate = "20150416" #"20150205" #gprofOntos file
 pwDate = "20150416" #"20150205" #clustvisInput file
-pwPath = str_c(cachePath, pwDate, "/")
-load(file = str_c(cachePath, pwDate, "/clustvisInput_", pwDate, ".RData"))
+pwPath = str_c(path, "datasets/")
+load(file = str_c(pwPath, "clustvisInput_", pwDate, ".RData"))
 str = strsplit(projectBrowserPath, "/")[[1]]
 projectBrowserPath = str_c(pbPathPrefix, str[length(str)], "/")
-load(file = str_c(cachePath, pwDate, "/clustvisInput_", pwDate, "_helpTables.RData"))
-helpTablesOptions = list(lengthMenu = c(5, 10, 25, 50), pageLength = 5) #options for help page tables
+load(file = str_c(pwPath, "clustvisInput_", pwDate, "_helpTables.RData"))
+helpTablesOptions = list(rownames = FALSE, lengthMenu = c(5, 10, 25, 50), pageLength = 5) #options for help page tables and table below jitterplot
+uploadInputOptions = list("Load sample data" = 1, "Upload file" = 2,
+  "Paste data" = 3, "Import public dataset from ArrayExpress" = 5, 
+  "Load saved settings" = 4, "Import prepared gene expression matrix" = 6)
+if(clustvisEdition == "custom"){
+  uploadInputOptions[[which(uploadInputOptions == 5)]] = NULL
+}
+
 allAnno = "All annotations" #name for the default annotation group
+#change font to Arial:
+fonts = getSVGFonts()
+fonts$sans = "Arial"
+setSVGFonts(fonts)
 
 #javascript functions for tooltips
+#http://stackoverflow.com/questions/10687131/jquery-select-by-attribute-using-and-and-or-operators
 jsCode = "
 shinyjs.activateTooltips = function(){
   $('[data-toggle=\"tooltip\"]').tooltip({container: 'body', html: true, placement: right});
@@ -101,27 +144,47 @@ shinyjs.hideTooltips = function(){
   $('[data-toggle=\"tooltip\"]').tooltip('hide');
 };
 shinyjs.addHandlers = function(){
-  $('[data-toggle=\"tooltip\"][class!=\"link\"][class!=\"nolink\"]').click(function() {
-    Shiny.onInputChange('clickedObject', this.id);
-    Shiny.onInputChange('clickedType', $(this).attr('class'));
+  $('[data-toggle=\"tooltip\"][class=\"hmRow\"],[data-toggle=\"tooltip\"][class=\"hmCol\"],[data-toggle=\"tooltip\"][class=\"hmCell\"]').click(function() {
+    Shiny.onInputChange('hmClickedObject', this.id);
+    Shiny.onInputChange('hmClickedType', $(this).attr('class'));
+  });
+  $('[data-toggle=\"tooltip\"][class=\"pcaRow\"],[data-toggle=\"tooltip\"][class=\"pcaCol\"],[data-toggle=\"tooltip\"][class=\"pcaCell\"]').click(function() {
+    Shiny.onInputChange('pcaClickedObject', this.id);
+    Shiny.onInputChange('pcaClickedType', $(this).attr('class'));
   });
 }
-shinyjs.sendEmpty = function(){
-  Shiny.onInputChange('clickedObject', '');
-  Shiny.onInputChange('clickedType', '');
+shinyjs.changeClicked = function(message){
+  Shiny.onInputChange(message.prefix + 'ClickedObject', message.newObject);
+  Shiny.onInputChange(message.prefix + 'ClickedType', message.newType);
 }
 "
-
-setwd(sessPath)
-maxUploadMB = 2 #maximum uploaded file size in MB
-#http://stackoverflow.com/questions/18037737/how-to-change-maximum-upload-size-exceeded-restriction-in-shiny-and-save-user
-options(shiny.maxRequestSize = maxUploadMB * 1024 ^ 2) 
-
 
 #convert checkboxGroup to boolean
 #since tooltips for checkbox() don't show nicely (only appear if you hover over checkbox itself, not label)
 toBoolean = function(x){
 	!is.null(x)
+}
+
+#find number of annotations
+nAnno = function(anno){
+  if(is.null(anno)){
+    n = 0
+  } else {
+    n = ncol(anno)
+  }
+  n
+}
+
+#find prefix based on the tab
+findPrefix = function(tab){
+  if(tab == "Heatmap"){
+    prefix = "hm"
+  } else if(tab == "PCA"){
+    prefix = "pca"
+  } else {
+    prefix = "othertab"
+  }
+  prefix
 }
 
 #cut long strings
@@ -134,9 +197,52 @@ cutLong = function(s, len){
 	s
 }
 
+#cut long labels
+#split by comma first, then keep the beginning of each part
+#three dots account for one character
+#only for y-axis label because x-labels could be made non-unique accidentally
+cutLabels = function(s, len){
+  sep = ", "
+  replacement = "."
+  s = as.vector(s)
+  spl = strsplit(s, sep)
+  lenSeps = (max(sapply(spl, length)) - 1) * nchar(sep) #total length of separators
+  lenPieces = len - lenSeps
+  lenEachPiece = floor(min(sapply(spl, function(x) lenPieces / length(x))))
+  if(lenEachPiece < 2){
+    res = str_c(str_sub(s, 1, len - 1), "...")
+  } else {
+    res = sapply(spl, function(x){
+      add = ifelse(nchar(x) > lenEachPiece - 1, replacement, "")
+      res = str_c(str_c(str_sub(x, 1, lenEachPiece - 1), add), collapse = sep)
+    })
+  }
+  res
+}
+
 #remove technical annotations that are used for tooltips and links
 removeTechnical = function(anno){
   anno[, !(colnames(anno) %in% interactivityAnnos), drop = FALSE]
+}
+
+#add a line to log with dataset details
+sendToLog = function(data){
+  inp = data$inputSaved$uploadDataInput
+  v = c(format(Sys.time()), inp, nrow(data$mat), ncol(data$mat), clustvisEdition)
+  cat(str_c(v, collapse = ";"), "\n", append = TRUE, file = logFile)
+}
+
+#empty if group changed, otherwise keep previous settings
+#type - "Col" or "Row"
+findSaved = function(data, values, type){
+  oppositeType = ifelse(type == "Col", "Row", "Col")
+  oldType = ifelse(toBoolean(data$inputSaved$uploadMatrixTranspose), oppositeType, type)
+  if(!identical(data[[str_c("annoGroups", type)]], values[[str_c("annoGroups", oldType, "Old")]])){
+    saved = list()
+  } else {
+    saved = data$inputSaved
+  }
+  saved
 }
 
 #find which columns or rows are retained after filtering
@@ -165,6 +271,25 @@ findRetainedAfterFiltering = function(anno, input, type, mat){
 		}
 	}
 	which(wRetain)
+}
+
+#values of checkboxes "change all levels"
+getChangeAllCheckboxes = function(inputSaved, annoCol, annoRow){
+  if(!is.null(annoCol)){
+    labelsCol = str_c("uploadColumnFiltersAnno", 1:ncol(annoCol))
+  } else {
+    labelsCol = NULL
+  }
+  if(!is.null(annoRow)){
+    labelsRow = str_c("uploadRowFiltersAnno", 1:ncol(annoRow))
+  } else {
+    labelsRow = NULL
+  }
+  labels = c(labelsCol, labelsRow)
+  if(is.null(labels)) return(NULL)
+  bool = sapply(labels, function(x) toBoolean(inputSaved[[str_c(x, "trackChangeAll")]]))
+  names(bool) = labels
+  bool
 }
 
 #show only nr first rows and nc first columns of a matrix
@@ -220,7 +345,7 @@ collapseSimilarAnnoMat = function(anno, mat, fun = median){
 	for(i in 1:length(anno2$gr)){
 		w = which(anno$gr == anno2$gr[i])
 		res = cbind(res, fun2(mat[, w, drop = FALSE]))
-		mapping = rbind(mapping, data.frame(orig = w, agg = i))
+		mapping = rbind(mapping, data.frame(orig = w, agg = i, origName = colnames(mat)[w], aggName = anno2$gr[i]))
 	}
 	colnames(res) = anno2$gr
 	rownames(anno2) = anno2$gr
@@ -289,7 +414,7 @@ calcAnnoLegendColors = function(x){
 #number of rows and columns of the matrix
 calcSize = function(mat){
   if(is.null(mat)){
-    size = data.frame(Rows = 0, Columns = 0)
+    size = data.frame(Rows = 0L, Columns = 0L)
   } else {
     size = data.frame(Rows = nrow(mat), Columns = ncol(mat))
   }
@@ -324,15 +449,32 @@ recalcFactorLevels = function(anno){
   anno
 }
 
-#indices where the string has specified prefix 
+#indices where the string has the specified prefix
 searchPrefix = function(prefix, names){
-  which(str_sub(names, 1, str_length(prefix)) == prefix)
+  which(str_sub(names, 1, str_length(prefix)) %in% prefix)
 }
 
 #checks whether there is an annotation with a given name
 hasAnno = function(anno, name){
   !is.null(anno) && (name %in% colnames(anno))
 }
+
+#add links to the table below jitterplot if available among annotations
+addLinks = function(v, anno){
+  if(hasAnno(anno, linkAnno)){
+    m = match(v, rownames(anno))
+    v2 = str_c(str_c(str_c(str_c("<a href=\"", anno[m, linkAnno]), "\" target=\"_blank\">"), v), "</a>")
+  } else {
+    v2 = v
+  }
+  v2
+}
+
+#trivial mapping
+defaultMapping = function(mat){
+  data.frame(orig = 1:ncol(mat), agg = 1:ncol(mat), origName = colnames(mat), aggName = colnames(mat))
+}
+
 
 dataProcess = function(data){
 	if(is.null(data$inputSaved)) return(NULL)
@@ -353,10 +495,10 @@ dataProcess = function(data){
     } else {
       annoCol = data$annoCol[, keep, drop = FALSE]
       mat = data$mat
-      if(is.null(mat)){
-        mappingCol = NULL
+      if(!is.null(mat)){
+        mappingCol = defaultMapping(mat)
       } else {
-        mappingCol = data.frame(orig = 1:ncol(mat), agg = 1:ncol(mat))
+        mappingCol = NULL
       }
     }
   } else {
@@ -367,17 +509,16 @@ dataProcess = function(data){
       annoCol = NULL
     }
     if(!is.null(mat)){
-      mappingCol = data.frame(orig = 1:ncol(mat), agg = 1:ncol(mat))
+      mappingCol = defaultMapping(mat)
     } else {
       mappingCol = NULL
     }
   }
 	if(!is.null(mat)){
-	  mappingRow = data.frame(orig = 1:nrow(mat), agg = 1:nrow(mat))
+	  mappingRow = defaultMapping(t(mat))
 	} else {
 	  mappingRow = NULL
 	}
-  
 	sizeTable = rbind(sizeTable, calcSize(mat))
   
 	#missing values:
@@ -391,51 +532,68 @@ dataProcess = function(data){
 	  naTableCols = calcNaTable(t(mat), naCols, naColsRem)
 	  wr = which(!(rownames(mat) %in% naRowsRem))
 	  wc = which(!(colnames(mat) %in% naColsRem))
-    if((length(wr) == 0) | (length(wc) == 0)) return(NULL)
-	  mat = mat[wr, wc, drop = FALSE]
-	  annoCol = annoCol[wc, , drop = FALSE]
-	  annoRow = annoRow[wr, , drop = FALSE]
-	  sizeTable = rbind(sizeTable, calcSize(mat))
-    
-	  #remove constant rows and optionally columns:
+    if((length(wr) == 0) | (length(wc) == 0)){
+      mat = annoCol = annoRow = NULL
+    } else {
+      mat = mat[wr, wc, drop = FALSE]
+      annoCol = annoCol[wc, , drop = FALSE]
+      annoRow = annoRow[wr, , drop = FALSE]
+    }
+	} else {
+	  naTableRows = naTableCols = naRowsRem = naColsRem = NULL
+	}
+	sizeTable = rbind(sizeTable, calcSize(mat))
+  
+	#remove constant rows and optionally columns:
+	if(!is.null(mat)){
 	  constRows = findSD0(mat, 1)
 	  constCols = findSD0(mat, 2)
 	  wr = which(!(rownames(mat) %in% constRows))
-    if(procRemConstCols){
-      wc = which(!(colnames(mat) %in% constCols))
-    } else {
-      wc = 1:ncol(mat)
-    }
-	  if((length(wr) == 0) | (length(wc) == 0)) return(NULL)
-	  mat = mat[wr, wc, drop = FALSE]
-	  annoCol = annoCol[wc, , drop = FALSE]
-	  annoRow = annoRow[wr, , drop = FALSE]
-	  sizeTable = rbind(sizeTable, calcSize(mat))
+	  if(procRemConstCols){
+	    wc = which(!(colnames(mat) %in% constCols))
+	  } else {
+	    wc = 1:ncol(mat)
+	  }
+	  if((length(wr) == 0) | (length(wc) == 0)){
+	    mat = annoCol = annoRow = NULL
+	  } else {
+	    mat = mat[wr, wc, drop = FALSE]
+	    annoCol = annoCol[wc, , drop = FALSE]
+	    annoRow = annoRow[wr, , drop = FALSE]
+	  }
 	} else {
-    return(NULL)
+	  constRows = constCols = NULL
 	}
-  
-	prep = prep(t(mat), scale = inputSaved$procScaling, center = procCentering)
-	pca = pca(prep, method = inputSaved$procMethod, nPcs = min(c(dim(mat), maxComponents)))
-	matPca = scores(pca)
-  pcaLoadings = loadings(pca)
-	matImputed = t(completeObs(pca))
-	matScaled = t(prep)
-	varTable = rbind(Individual = pca@R2, Cumulative = pca@R2cum)
-	colnames(varTable) = str_c("PC", 1:ncol(varTable))
-  rownames(sizeTable) = c("Before processing", "After collapsing similar columns (if applied)", 
-    "After removing rows and columns with NAs", "After removing constant rows and optionally columns")
+	sizeTable = rbind(sizeTable, calcSize(mat))
+	rownames(sizeTable) = c("Before processing", "After collapsing similar columns (if applied)", 
+	  "After removing rows and columns with NAs", "After removing constant rows and optionally columns")
 	sizeTable = t(sizeTable)
-  annoCol = recalcFactorLevels(annoCol)
-	annoRow = recalcFactorLevels(annoRow)
-	l = list(annoCol = annoCol, annoRow = annoRow, 
-           mat = mat, matPca = matPca, matScaled = matScaled, matImputed = matImputed, 
-           varTable = varTable, sizeTable = sizeTable,
-           pcaLoadings = pcaLoadings, inputSaved = inputSaved,
-	         naTableRows = naTableRows, naTableCols = naTableCols, 
-           naRowsRem = naRowsRem, naColsRem = naColsRem,
-	         constRows = constRows, constCols = constCols,
-           mappingCol = mappingCol, mappingRow = mappingRow)
+  
+	if(!is.null(mat)){
+	  prep = prep(t(mat), scale = inputSaved$procScaling, center = procCentering)
+	  pca = pca(prep, method = inputSaved$procMethod, nPcs = min(c(dim(mat), maxComponents)))
+	  matPca = scores(pca)
+	  pcaLoadings = loadings(pca)
+	  matImputed = t(completeObs(pca))
+	  matScaled = t(prep)
+	  varTable = rbind(Individual = pca@R2, Cumulative = pca@R2cum)
+	  colnames(varTable) = str_c("PC", 1:ncol(varTable))
+	  annoCol = recalcFactorLevels(annoCol)
+	  annoRow = recalcFactorLevels(annoRow)
+	  l = list(annoCol = annoCol, annoRow = annoRow, 
+	           mat = mat, matPca = matPca, matScaled = matScaled, matImputed = matImputed, 
+	           varTable = varTable, sizeTable = sizeTable,
+	           pcaLoadings = pcaLoadings, inputSaved = inputSaved,
+	           naTableRows = naTableRows, naTableCols = naTableCols, 
+	           naRowsRem = naRowsRem, naColsRem = naColsRem,
+	           constRows = constRows, constCols = constCols,
+	           mappingCol = mappingCol, mappingRow = mappingRow)
+	} else {
+	  l = list(sizeTable = sizeTable, inputSaved = inputSaved,
+	           naTableRows = naTableRows, naTableCols = naTableCols, 
+	           naRowsRem = naRowsRem, naColsRem = naColsRem,
+	           constRows = constRows, constCols = constCols)
+	}
 	l
 }
 
@@ -577,6 +735,19 @@ filterRows = function(session, mat, input, organism, annoGroupsCol){
   list(mat = mat, message = message)
 }
 
+findCounts = function(v){
+  if(is.null(v)) return(v)
+  if(class(v) == "factor"){
+    #assume there are no NAs if factor
+    tab = table(v)
+  } else {
+    v2 = sort(as.vector(v), na.last = FALSE)
+    v2[is.na(v2)] = ""
+    tab = table(factor(v2, levels = unique(v2)))
+  }
+  tab
+}
+
 annotationsFilters = function(anno, inputSaved, type, groups){
   anno = removeTechnical(anno)
   taglist = list()
@@ -584,7 +755,6 @@ annotationsFilters = function(anno, inputSaved, type, groups){
     grnames = names(groups)
     names(grnames) = str_c("from '", grnames, "'")
     lens = sapply(groups, length)
-    clsAll = sapply(anno, class)
     id = str_c("upload", type, "FilterGroupsAnno")
     rb = radioButtons(id, NULL, choices = grnames, selected = inputSaved[[id]])
     if(length(grnames) > 1){
@@ -598,28 +768,27 @@ annotationsFilters = function(anno, inputSaved, type, groups){
         cn = groups[[j]]
         cnCut = cutLong(cn, maxCharactersAnnotations)
         names(cn) = str_c("by '", cnCut, "'")
-        cls = clsAll[groups[[j]]]
         for(i in 1:length(cn)){
           m = match(cn[i], colnames(anno))
           idtrack = str_c("upload", type, "FiltersAnno", m, "track")
-          if(cls[i] == "factor"){
-            uni = levels(anno[, cn[i]])
-          } else {
-            uni = sort(as.vector(unique(anno[, cn[i]])), na.last = FALSE)
-            uni[is.na(uni)] = ""
-          }
+          cnts = findCounts(v = anno[, cn[i]])
+          uni = names(cnts)
           uniCut = cutLong(uni, maxCharactersAnnotations)
-          names(uni) = str_c("- ", uniCut)
+          names(uni) = str_c(str_c(str_c(str_c("- ", uniCut), " ("), cnts), ")")
           isolate({
             sel = inputSaved[[idtrack]]
             if(is.null(sel) || (sel != cn[i])){
               selSub = uni
+              selChange = changeAll
             } else {
               selSub = inputSaved[[str_c(idtrack, "sub")]]
+              selChange = inputSaved[[str_c(idtrack, "ChangeAll")]]
             }
           })
           taglist[[2 * m]] = checkboxGroupInput(idtrack, NULL, choices = cn[i], selected = sel)
           taglist[[2 * m + 1]] = conditionalPanel(condition = str_c("input.", idtrack, " != ''"),
+            checkboxGroupInput(str_c(idtrack, "ChangeAll"), 
+              NULL, choices = changeAll, selected = selChange),
             checkboxGroupInput(str_c(idtrack, "sub"), NULL, choices = uni, selected = selSub)
           )
         }
@@ -646,12 +815,10 @@ getTooltipTitles = function(mapping, names, rows = FALSE){
 #generate text for tooltips
 getTooltipTexts = function(anno, titles){
   linebr = "<br />"
-  colname = "plot_tooltip"
-  
   if(is.null(anno)){
     tooltips = titles
-  } else if(colname %in% colnames(anno)){
-    tooltips = anno[[colname]]
+  } else if(tooltipAnno %in% colnames(anno)){
+    tooltips = anno[[tooltipAnno]]
   } else if(all(colnames(anno) %in% interactivityAnnos)){
     tooltips = titles
   } else {
@@ -700,13 +867,25 @@ plotPCA = function(data){
 	if(!is.null(grColor) && !(grColor %in% colnames(x2))) return(list(NULL, 0, 0, message = NULL))
 	if(!is.null(grShape) && !(grShape %in% colnames(x2))) return(list(NULL, 0, 0, message = NULL))
   grSep = ", "
-	x2$groupingColor = apply(x2[grColor], 1, function(x) str_c(x, collapse = grSep))
-  if((length(grColor) == 1) & (class(x2[, grColor]) == "factor")){
-    x2$groupingColor = factor(x2$groupingColor, levels = levels(x2[, grColor]))
+  if(!is.null(grColor)){
+    x2$groupingColor = apply(x2[grColor], 1, function(x) str_c(x, collapse = grSep))
+    if((length(grColor) == 1) & (class(x2[, grColor]) == "factor")){
+      x2$groupingColor = factor(x2$groupingColor, levels = levels(x2[, grColor]))
+    }
+    groupingTitleColor = str_c(grColor, collapse = grSep)
+  } else {
+    x2$groupingColor = ""
+    groupingTitleColor = ""
   }
-	x2$groupingShape = apply(x2[grShape], 1, function(x) str_c(x, collapse = grSep))
-	if((length(grShape) == 1) & (class(x2[, grShape]) == "factor")){
-	  x2$groupingShape = factor(x2$groupingShape, levels = levels(x2[, grShape]))
+	if(!is.null(grShape)){
+	  x2$groupingShape = apply(x2[grShape], 1, function(x) str_c(x, collapse = grSep))
+	  if((length(grShape) == 1) & (class(x2[, grShape]) == "factor")){
+	    x2$groupingShape = factor(x2$groupingShape, levels = levels(x2[, grShape]))
+	  }
+	  groupingTitleShape = str_c(grShape, collapse = grSep)
+	} else {
+	  x2$groupingShape = ""
+	  groupingTitleShape = ""
 	}
 	nColor = length(unique(x2$groupingColor)) #number of different groups for color
 	nShape = length(unique(x2$groupingShape)) #number of different groups for shape
@@ -715,8 +894,6 @@ plotPCA = function(data){
 	} else if(nShape > maxShapeLevels){
 	  return(list(NULL, 0, 0, message = str_c("You have ", nShape, " different groups for shape, only up to ", maxShapeLevels, " are allowed. Please change shape grouping!")))
 	}
-	groupingTitleColor = str_c(grColor, collapse = grSep)
-	groupingTitleShape = str_c(grShape, collapse = grSep)
 	ellCoord = calcEllipses(x2, inputSaved$pcaEllipseConf)
 	showEllipses = (pcaShowEllipses & (length(grColor) > 0) & (!is.null(ellCoord)))
 	
@@ -814,8 +991,8 @@ plotPCA = function(data){
 	  q = q + geom_path(aes(shape = NULL), data = ellCoord, size = inputSaved$pcaEllipseLineWidth, linetype = inputSaved$pcaEllipseLineType, show_guide = FALSE)
 	}
 	
-	return(list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, 
-              message = NULL, showEllipses = showEllipses))
+  list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, 
+              message = NULL, showEllipses = showEllipses)
 }
 
 calcClustering = function(mat, distance, linkage){
@@ -866,11 +1043,14 @@ calcOrdering = function(mat, distance, linkage, ordering){
 
 annoLevels = function(anno){
   if(is.na(anno)){
-    tab = NULL
+    res = list(anno = anno, removed = NULL)
   } else {
     tab = apply(anno, 2, function(x) length(unique(x)))
+    rm = names(tab[tab > maxAnnoLevels])
+    if(length(rm) == 0) rm = NULL
+    res = list(anno = anno[, !(colnames(anno) %in% rm), drop = FALSE], removed = rm)
   }
-  tab
+  res
 }
 
 plotHeatmap = function(data, filename = NA){
@@ -902,16 +1082,16 @@ plotHeatmap = function(data, filename = NA){
 		annoCol2 = NA
 	}
   
-	#number of annotation levels in each annotation:
-  nLevels = c(annoLevels(annoRow2), annoLevels(annoCol2))
-  if(!is.null(nLevels)){
-    nLevelsMax = nLevels[which.max(nLevels)]
-    if(nLevelsMax > maxAnnoLevels){
-      return(list(ph = NULL, pich = 0, picw = 0, message = str_c(
-        "The annotation '", names(nLevelsMax), 
-        "' has ", nLevelsMax, " levels, only up to ", maxAnnoLevels, 
-        " are allowed. Please remove this annotation from the plot!")))
-    }
+	#remove annotations with large number of levels:
+  alr = annoLevels(annoRow2)
+  alc = annoLevels(annoCol2)
+  annoRow2 = alr$anno
+	annoCol2 = alc$anno
+  removed = c(alr$removed, alc$removed)
+  if(!is.null(removed)){
+    message = str_c("The following annotations have more than ", maxAnnoLevels, " levels and were removed from the plot: '", str_c(removed, collapse = "', '"), "'.")
+  } else {
+    message = NULL
   }
   
 	colScheme = brewer.pal(n = 7, name = inputSaved$hmColorScheme)
@@ -958,38 +1138,39 @@ plotHeatmap = function(data, filename = NA){
     filename = filename, width = picwIn, height = pichIn, silent = is.na(filename)
 	)
   
-	return(list(ph = ph, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, message = NULL))
+	list(ph = ph, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, message = message)
 }
 
-#plot when clicked on heatmap row or column or cell or PCA point
-plotRowCol = function(data, original){
+#table below the plot when clicked on heatmap row or column or cell or PCA point
+tableJitter = function(data, original, plotType){
   set.seed(123)
+  if(is.null(data$matFinal)) return(NULL)
   inputSaved = data$inputSaved
-  object = inputSaved$clickedObject
-  clickedType = inputSaved$clickedType
+  object = inputSaved[[str_c(plotType, "ClickedObject")]]
+  clickedType = inputSaved[[str_c(plotType, "ClickedType")]]
   matFinal = data$matFinal
-  if(is.null(data)) return(frame())
-  if(clickedType %in% c("hmRow", "hmCol", "hmCell")){
-    plotType = "hm"
-  } else if(clickedType %in% c("pcaCol", "pcaCell")){
-    plotType = "pca"
-  } else {
-    return(frame())
-  }
+  if(!(clickedType %in% c("hmRow", "hmCol", "hmCell", "pcaCol", "pcaCell"))) return(frame())
   
   str = strsplit(object, "-")[[1]]
   if(clickedType == "hmRow"){
     rowIds = as.numeric(str[2])
     colIds = 1:ncol(matFinal)
+    nextLinks = str_c(str_c(str_c("hmCell-", rowIds), "-"), colIds)
   } else if(clickedType %in% c("hmCol", "pcaCol")){
-    rowIds = 1:nrow(matFinal)
+    if((clickedType == "pcaCol") & toBoolean(inputSaved$hmTransposeHeatmap)){
+      rowIds = 1:ncol(matFinal)
+    } else {
+      rowIds = 1:nrow(matFinal)
+    }
     colIds = as.numeric(str[2])
+    nextLinks = str_c(str_c(str_c(str_c(plotType, "Cell-"), rowIds), "-"), colIds)
   } else if(clickedType %in% c("hmCell", "pcaCell")){
     rowIds = as.numeric(str[2])
     colIds = as.numeric(str[3])
+    nextLinks = NULL
   }
   mapping = data$mappingCol
-
+  
   if(clickedType %in% c("hmRow", "hmCol", "hmCell")){
     if(!is.na(data$hcRows)){
       rowIds = data$hcRows$order[rowIds]
@@ -999,49 +1180,97 @@ plotRowCol = function(data, original){
     }
     if(toBoolean(inputSaved$hmTransposeHeatmap)){
       temp = colIds; colIds = rowIds; rowIds = temp
-      mapping = data$mappingRow
-      matFinal = t(matFinal)
-    } 
+    }
   }
   
-  mapping$origName = colnames(original)
-  mapping$aggName = colnames(matFinal)[mapping$agg]
-  colIdsOriginal = mapping$orig[mapping$agg %in% colIds]
-  sub = original[rowIds, colIdsOriginal, drop = FALSE]
+  if(toBoolean(inputSaved$hmTransposeHeatmap)){
+    mapping = data$mappingRow
+    matFinal = t(matFinal)
+  }
+  
   xlab = rownames(matFinal)[rowIds]
   ylab = colnames(matFinal)[colIds]
-  rowClicked = (length(ylab) >= length(xlab)) #one cell is also like row
+  ylabOriginal = mapping$origName[mapping$aggName %in% ylab]
+  sub = original[xlab, ylabOriginal, drop = FALSE]
+  
+  rowClicked = (length(ylab) >= length(xlab)) #one cell is also like a row
   if(rowClicked){
     temp = ylab; ylab = xlab; xlab = temp
     sub = t(sub)
   }
-  long = melt(sub, varnames = c("rn", "cn"))
+  points = melt(sub, varnames = c("rn", "cn"))
   if(rowClicked){
-    gr = mapping$aggName[colIdsOriginal]
-    long$gr = factor(gr, levels = xlab)
+    points$gr = mapping$aggName[match(ylabOriginal, mapping$origName)]
+    points$gr = factor(points$gr, levels = xlab)
   } else {
-    long$gr = long$rn
+    points$gr = points$rn
+  }  
+  
+  if(all(points$rn %in% colnames(original)) && all(points$cn %in% rownames(original))){
+    points$rnOrig = points$cn
+    points$cnOrig = points$rn
+  } else if(all(points$rn %in% rownames(original)) && all(points$cn %in% colnames(original))){
+    points$rnOrig = points$rn
+    points$cnOrig = points$cn
+  } else {
+    return(NULL)
   }
-  n = length(unique(long$gr))
+  list(points = points, xlab = xlab, ylab = ylab, 
+       plotType = plotType, nextLinks = nextLinks, inputSaved = inputSaved, test = list())
+}
+
+#plot when clicked on heatmap row or column or cell or PCA point
+plotJitter = function(data){
+  points = data$points
+  xlab = data$xlab
+  ylab = data$ylab
+  plotType = data$plotType
+  nextLinks = data$nextLinks
+  inputSaved = data$inputSaved
+  if(is.null(points)) return(frame())
+  xLev = unique(points$gr)
+  n = length(xLev)
   baseSize = 20
   constDecrease = 0.175 #how fast font size decreases if more than 50 groups
   xSize = ifelse(n <= 50, baseSize, max(0.1, baseSize - (n - 50) * constDecrease))
-  q = ggplot(long, aes(gr, value)) + theme_bw(base_size = baseSize) +
-  labs(x = NULL, y = ylab) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = xSize))
-  if(inputSaved[[str_c(plotType, "RcPlotType")]] == "violin"){
+  if(n == 1){
+    xProp = element_text(angle = 0, vjust = 0.5, hjust = 0.5, size = xSize)
+  } else {
+    xProp = element_text(angle = 90, vjust = 0.5, hjust = 1, size = xSize)
+  }
+  ylab = cutLabels(ylab, maxLabelLengthJitterplot)
+  
+  #dimensions:
+  pdf("Rplots.pdf")
+  maxw = max(strwidth(xLev, units = 'in', cex = xSize / 12), na.rm = TRUE) #longest x-axis name
+  dev.off(); unlink("Rplots.pdf")
+  if(length(xLev) == 1) maxw = strheight(xLev, units = 'in', cex = xSize / 12) / 2.54 #horizontal x-label
+  pichIn = 15 / 2.54 + maxw
+  picwIn = 30 / 2.54
+  roundingDigits = 2
+  picw = round(picwIn * 72, roundingDigits)
+  pich = round(pichIn * 72, roundingDigits)
+  
+  q = ggplot(points, aes(gr, value)) + theme_bw(base_size = baseSize) +
+  labs(x = NULL, y = ylab) + theme(axis.text.x = xProp,
+    plot.margin = unit(c(1, 0, 0.5, 0), "cm"))
+  if(inputSaved[[str_c(plotType, "JitterPlotType")]] %in% c("violin", "violin dots")){
     q = q + geom_violin()
-  } else if(inputSaved[[str_c(plotType, "RcPlotType")]] == "box"){
+  } else if(inputSaved[[str_c(plotType, "JitterPlotType")]] %in% c("box", "box dots")){
     q = q + geom_boxplot()
   }
-  jitterWidth = ifelse(inputSaved[[str_c(plotType, "RcSeparateOverlapping")]] == "jittering", 
-                       inputSaved[[str_c(plotType, "RcJitteringWidth")]], 0)
-  alpha = ifelse(inputSaved[[str_c(plotType, "RcSeparateOverlapping")]] == "transparency", 
-                 1 - inputSaved[[str_c(plotType, "RcTransparency")]], 1)
+  jitterWidth = ifelse(inputSaved[[str_c(plotType, "JitterSeparateOverlapping")]] == "jittering", 
+                       inputSaved[[str_c(plotType, "JitterJitteringWidth")]], 0)
+  if(inputSaved[[str_c(plotType, "JitterPlotType")]] %in% c("violin", "box")){
+    alpha = 0 #points not shown
+  } else if(inputSaved[[str_c(plotType, "JitterSeparateOverlapping")]] == "transparency"){
+    alpha = 1 - inputSaved[[str_c(plotType, "JitterTransparency")]]
+  } else {
+    alpha = 1 #black points
+  }
   q = q + geom_jitter(position = position_jitter(height = 0, width = jitterWidth), size = 5, alpha = alpha)
-  picwIn = 30 / 2.54
-  pichIn = 20 / 2.54
-  picw = picwIn * 72
-  pich = pichIn * 72
-  return(list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, 
-              points = long, plotType = plotType))
+  list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, 
+              points = points, plotType = plotType, nextLinks = nextLinks)
 }
+
+

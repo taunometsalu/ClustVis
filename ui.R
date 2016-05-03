@@ -1,3 +1,6 @@
+#Author: Tauno Metsalu
+#Copyright: 2016 University of Tartu
+
 source("/srv/shiny-server/global.R")
 
 h = 800
@@ -5,10 +8,10 @@ pcaPlot = uiOutput("pca", height = "100%", width = "100%")
 hmPlot = uiOutput("heatmap", height = "100%", width = "100%")
 
 #no quotes allowed in tooltips:
-rcPlotTypeTooltip = "Whether to show violin plot or box plot together with points. This is informative if columns with similar annotations are collapsed (see data pre-processing tab)."
-rcSeparateOverlappingTooltip = "Whether to shift points horizontally (jittering) or make points transparent to distinguish overlapping points. This may be needed if columns with similar annotations are collapsed (see data pre-processing tab)."
+jitterPlotTypeTooltip = "Whether to show violin plot or box plot together with points. This is informative if columns with similar annotations are collapsed (see data pre-processing tab)."
+jitterSeparateOverlappingTooltip = "Whether to shift points horizontally (jittering) or make points transparent to distinguish overlapping points. This may be needed if columns with similar annotations are collapsed (see data pre-processing tab)."
 
-rcPlotCondition = function(type, negative = FALSE){
+jitterPlotCondition = function(type, negative = FALSE){
   if(type == "hm"){
     ids = c("hmRow", "hmCol", "hmCell")
   } else if(type == "pca"){
@@ -16,24 +19,28 @@ rcPlotCondition = function(type, negative = FALSE){
   } else {
     stop("Such type not found!")
   }
-  cond = str_c(str_c("input.clickedType == '", ids), "'", collapse = " || ")
+  cond = str_c(str_c(str_c("input.", type, "ClickedType == '"), ids), "'", collapse = " || ")
   if(negative) cond = str_c("!(", cond, ")")
   cond
 }
 
-rcPlotOptions = function(type){
-  conditionalPanel(condition = rcPlotCondition(type),
+jitterPlotOptions = function(type){
+  conditionalPanel(condition = jitterPlotCondition(type),
     h4("Plot options"),
-    radioButtons(str_c(type, "RcPlotType"), "Plot type:", selected = "dots", 
-      choices = list("Points only" = "dots", "Violin plot" = "violin", "Box plot" = "box")),
-    radioButtons(str_c(type, "RcSeparateOverlapping"), "Separate overlapping points:", 
-                 selected = "no", choices = c("no", "jittering", "transparency")),
-    conditionalPanel(condition = str_c("input.", type, "RcSeparateOverlapping == 'jittering'"),
-      sliderInput(str_c(type, "RcJitteringWidth"), "Jittering width:", 
-                  min = 0, max = 0.5, value = 0.25, step = 0.01)
+    radioButtons(str_c(type, "JitterPlotType"), "Plot type:", selected = "dots", 
+      choices = list("Points only" = "dots", 
+                     "Violin plot with points" = "violin dots", "Box plot with points" = "box dots", 
+                     "Violin plot only" = "violin", "Box plot only" = "box")),
+    conditionalPanel(condition = str_c("input.", type, "JitterPlotType == 'dots' || input.", type, "JitterPlotType == 'violin dots' || input.", type, "JitterPlotType == 'box dots'"),
+      radioButtons(str_c(type, "JitterSeparateOverlapping"), "Separate overlapping points:", 
+        selected = "no", choices = c("no", "jittering", "transparency")),
+      conditionalPanel(condition = str_c("input.", type, "JitterSeparateOverlapping == 'jittering'"),
+        sliderInput(str_c(type, "JitterJitteringWidth"), "Jittering width:", 
+          min = 0, max = 0.5, value = 0.25, step = 0.01)
+      )
     ),
-    conditionalPanel(condition = str_c("input.", type, "RcSeparateOverlapping == 'transparency'"),
-      sliderInput(str_c(type, "RcTransparency"), "Transparency:", 
+    conditionalPanel(condition = str_c("input.", type, "JitterSeparateOverlapping == 'transparency'"),
+      sliderInput(str_c(type, "JitterTransparency"), "Transparency:", 
                   min = 0, max = 1, value = 0.5, step = 0.05)
     )
   )
@@ -47,7 +54,7 @@ fluidPage(
   #https://cran.r-project.org/web/packages/shinyjs/vignettes/overview.html
   #http://stackoverflow.com/questions/13338780/how-to-make-twitter-bootstrap-tooltips-have-multiple-lines
   extendShinyjs(text = jsCode),
-  titlePanel("ClustVis: a web tool for visualizing clustering of multivariate data (BETA)"),
+  titlePanel(str_c("ClustVis: a web tool for visualizing clustering of multivariate data (BETA)", titleSufix)),
   sidebarLayout(
 		sidebarPanel(
 			conditionalPanel(condition = "input.tabs1 == 'Introduction'",
@@ -62,13 +69,10 @@ fluidPage(
           });//]]> 
 				  </script>"))
 			),
-			conditionalPanel(condition = "input.tabs1 == 'Data upload'",
+			conditionalPanel(condition = "input.tabs1 == 'Data import'",
 				h4("Enter data"),
 				h5("Choose data input type:"),
-				radioButtons("uploadDataInput", NULL, 
-          list("Load sample data" = 1, "Upload file" = 2, "Paste data" = 3, 
-				  "Import public dataset from ArrayExpress" = 5, "Load saved settings" = 4,  
-					"Import prepared gene expression matrix" = 6)),
+				radioButtons("uploadDataInput", NULL, uploadInputOptions),
 				conditionalPanel(condition = "input.uploadDataInput == '1'",
 					h5("Choose dataset:"),
 					radioButtons("uploadSampleData", NULL, 
@@ -176,7 +180,7 @@ fluidPage(
 				selectInput("procMethod", "PCA method:", choices = procMeth, selected = "svdImpute", selectize = useSelectize)
 			),
 			conditionalPanel(condition = "input.tabs1 == 'PCA'",
-			  conditionalPanel(condition = rcPlotCondition("pca", negative = TRUE),
+			  conditionalPanel(condition = jitterPlotCondition("pca", negative = TRUE),
 				h4("PCA options"),
 				checkboxGroupInput("pcaChangeDataOptions", NULL, c("change data options" = TRUE), FALSE),
 				conditionalPanel(condition = "input.pcaChangeDataOptions != ''",
@@ -240,11 +244,11 @@ fluidPage(
 				)
 			  ),
         
-				rcPlotOptions("pca")
+				jitterPlotOptions("pca")
 			),
       
 			conditionalPanel(condition = "input.tabs1 == 'Heatmap'",
-			  conditionalPanel(condition = rcPlotCondition("hm", negative = TRUE), 
+			  conditionalPanel(condition = jitterPlotCondition("hm", negative = TRUE), 
 				h4("Heatmap options"),
 				checkboxGroupInput("hmChangeDataOptions", NULL, c("change data options" = TRUE), FALSE),
 				conditionalPanel(condition = "input.hmChangeDataOptions != ''",
@@ -318,7 +322,7 @@ fluidPage(
 			  )
 			  ),
         
-				rcPlotOptions("hm")
+				jitterPlotOptions("hm")
 			),
 
 			conditionalPanel(condition = "input.tabs1 == 'Export'",
@@ -328,15 +332,17 @@ fluidPage(
 			conditionalPanel(condition = "input.tabs1 == 'Help'",
 				h4("Help"),
 				a("General", href = "#general"), br(),
-				a("Data upload", href = "#upload"), br(),
+				a("Data import", href = "#upload"), br(),
 				a("Public dataset from MEM", href = "#mem"), br(),
 				a("List of datasets available", href = "#datasets"), br(),
 				a("List of pathways available", href = "#pathways"), br(),
+				a("Annotations based filtering", href = "#filtering"), br(),
 				a("Data pre-processing", href = "#processing"), br(),
 				a("PCA and heatmap", href = "#pca_heatmap"), br(),
 				a("Interactivity of the plots", href = "#interactivity"), br(),
 				a("Interpreting the output", href = "#interpretation"), br(),
-				a("Mathematical basis", href = "#mathematics")
+				a("Mathematical basis", href = "#mathematics"), br(),
+				a("ClustVis editions", href = "#editions")
 			),
 			conditionalPanel(condition = "input.tabs1 == 'News'",
 				h4("News")
@@ -349,8 +355,8 @@ fluidPage(
 			bsTooltip("uploadMinAnnoTracks", "You can filter out less informative datasets, e.g. those that have no annotations.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("uploadMinAnnoLevels", "You can filter out less informative annotations, e.g. those that are constant.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("uploadMaxAnnoLevels", "You can filter out less informative annotations, e.g. those that have different value for each sample.", tooltipPlace, options = tooltipOptions),
-			bsTooltip("uploadColumnFilteringAnno", "You can select a subset of columns using annotation groups.", tooltipPlace, options = tooltipOptions),
-			bsTooltip("uploadRowFilteringAnno", "You can select a subset of rows using annotation groups.", tooltipPlace, options = tooltipOptions),
+			bsTooltip("uploadColumnFilteringAnno", "You can select a subset of columns using annotation levels.", tooltipPlace, options = tooltipOptions),
+			bsTooltip("uploadRowFilteringAnno", "You can select a subset of rows using annotation levels.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("uploadMatrixTranspose", "You can transpose the data matrix. Row annotations will become column annotations and vice versa in this case.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("uploadRowFiltering", "How to limit the number of rows shown - take one pathway or custom gene list, cluster the genes using k-means and show cluster centers or choose one specific cluster from k-means clustering.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("uploadNbrClusters", "Number of clusters after appying k-means clustering.", tooltipPlace, options = tooltipOptions),
@@ -413,13 +419,13 @@ fluidPage(
 			bsTooltip("hmPlotRatio", "This applies to dimensions of the whole image file.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("hmShowAnnoTitlesRow", "Whether to show row annotation titles for the tracks left from the heatmap.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("hmShowAnnoTitlesCol", "Whether to show column annotation titles for the tracks above the heatmap.", tooltipPlace, options = tooltipOptions),
-			bsTooltip("hmInteractivity", "Whether to make the plot interactive by adding tooltips and links to row and column names and (if there are not too many cells) to single cells on the plot. This will make the plot more informative, but the plot generation time will increase (the response to changes in the input widgets will become slower).", tooltipPlace, options = tooltipOptions),
+			bsTooltip("hmInteractivity", "Whether to make the plot interactive by adding tooltips and links to row and column names and to single cells on the plot. This will make the plot more informative, but the plot generation time will increase (the response to changes in the input widgets will become slower).", tooltipPlace, options = tooltipOptions),
       
       #repeated for PCA and heatmap
-			bsTooltip("hmRcPlotType", rcPlotTypeTooltip, tooltipPlace, options = tooltipOptions),
-			bsTooltip("pcaRcPlotType", rcPlotTypeTooltip, tooltipPlace, options = tooltipOptions),
-      bsTooltip("hmRcSeparateOverlapping", rcSeparateOverlappingTooltip, tooltipPlace, options = tooltipOptions),
-			bsTooltip("pcaRcSeparateOverlapping", rcSeparateOverlappingTooltip, tooltipPlace, options = tooltipOptions),
+			bsTooltip("hmJitterPlotType", jitterPlotTypeTooltip, tooltipPlace, options = tooltipOptions),
+			bsTooltip("pcaJitterPlotType", jitterPlotTypeTooltip, tooltipPlace, options = tooltipOptions),
+      bsTooltip("hmJitterSeparateOverlapping", jitterSeparateOverlappingTooltip, tooltipPlace, options = tooltipOptions),
+			bsTooltip("pcaJitterSeparateOverlapping", jitterSeparateOverlappingTooltip, tooltipPlace, options = tooltipOptions),
 			
 			bsTooltip("exportSaveSettingsButton", "You can save settings to create a link with data and options pre-loaded.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("exportDeleteSettingsButton", "You can delete settings that you have saved before (for data privacy).", tooltipPlace, options = tooltipOptions),
@@ -428,8 +434,8 @@ fluidPage(
         #http://upgrade-bootstrap.bootply.com/
 				tags$style(type = "text/css", ".jslider { max-width: 220px; }"),
 				tags$style(type = "text/css", ".span4 { max-width: 265px; }"),
-				tags$style(type = "text/css", str_c(".shiny-image-output { position:absolute;}")),
-				tags$style(type = "text/css", str_c(".shiny-plot-output { position:absolute;}")),
+				tags$style(type = "text/css", ".shiny-image-output { position:absolute;}"),
+				tags$style(type = "text/css", ".shiny-plot-output { position:absolute;}"),
 				tags$style(type = "text/css", str_c(".rChart { height: ", h, "px; }")),
         #http://stackoverflow.com/questions/19855907/r-shiny-fix-sidebarpanel-width-to-a-specific-pixels-value
 				tags$style(type = "text/css", ".col-sm-4 { max-width: 295px; }"),
@@ -440,11 +446,12 @@ fluidPage(
         #http://stackoverflow.com/questions/8903313/using-regular-expression-in-css
         tags$style(type = "text/css", "div[id$='track'] { color: blue; }"),
 				tags$style(type = "text/css", "div[id$='tracksub'] { color: green; }"),
+				tags$style(type = "text/css", "div[id$='trackChangeAll'] { color: red; }"),
 				tags$style(type = "text/css", "textarea { width: 220px; }"),
         #http://stackoverflow.com/questions/13217669/svg-image-with-a-border-stroke
 				tags$style(type = "text/css", ".pcaCol:hover, .pcaCol:focus, .pcaCol:active { cursor: pointer; }"),
-        tags$style(type = "text/css", ".hmCell:hover, .hmCell:focus, .hmCell:active { cursor: pointer; stroke: red; stroke-width: 2px; }"),
-				tags$style(type = "text/css", ".hmRow:hover, .hmRow:focus, .hmRow:active, .hmCol:hover, .hmCol:focus, .hmCol:active { cursor: pointer; font-weight: bold; }")
+        tags$style(type = "text/css", ".hmCell:hover, .hmCell:focus, .hmCell:active, .pcaCell:hover, .pcaCell:focus, .pcaCell:active { cursor: pointer; stroke: red; stroke-width: 2px;}"),
+				tags$style(type = "text/css", ".hmRow:hover, .hmRow:focus, .hmRow:active, .hmCol:hover, .hmCol:focus, .hmCol:active { cursor: pointer; font-weight: bold;}")
 			)
 		),
 	
@@ -469,7 +476,7 @@ fluidPage(
           style = "overflow:hidden;"
 				),
 
-				tabPanel("Data upload",
+				tabPanel("Data import",
 				  p(textOutput("uploadWarnings")),
 					conditionalPanel(condition = "input.uploadDataInput == '5'",
 						p("Number of annotation levels in the original data before filtering:"), 
@@ -500,7 +507,7 @@ fluidPage(
           footer
 				),
 				tabPanel("PCA",
-				  conditionalPanel(condition = rcPlotCondition("pca", negative = TRUE),
+				  conditionalPanel(condition = jitterPlotCondition("pca", negative = TRUE),
 				    p(textOutput("pcaWarnings")),
 					  downloadButton("exportDownloadPdfPCA", "Download PDF-file"),
 					  downloadButton("exportDownloadEpsPCA", "Download EPS-file"),
@@ -510,14 +517,16 @@ fluidPage(
 					  pcaPlot
 				  ),
           
-				  conditionalPanel(condition = rcPlotCondition("pca"),
-				    p(textOutput("pcaRcWarnings")),
+				  conditionalPanel(condition = jitterPlotCondition("pca"),
+				    p(textOutput("pcaJitterWarnings")),
 				    actionButton("pcaBackButton", "Back to PCA plot"),
-				    uiOutput("pcaRowColPlot", height = "100%", width = "100%")
+				    actionButton("pcaBackPreviousButton", "Back to previous plot"), br(),
+				    uiOutput("pcaJitterPlot", height = "100%", width = "100%"), br(),
+				    dataTableOutput('pcaJitterTable')
 				  )
 				),
 				tabPanel("Heatmap",
-				  conditionalPanel(condition = rcPlotCondition("hm", negative = TRUE),
+				  conditionalPanel(condition = jitterPlotCondition("hm", negative = TRUE),
 				    p(textOutput("hmWarnings")),
 					  downloadButton("exportDownloadPdfHeatmap", "Download PDF-file"),
 					  downloadButton("exportDownloadEpsHeatmap", "Download EPS-file"),
@@ -527,10 +536,12 @@ fluidPage(
             hmPlot
 				  ),
           
-				  conditionalPanel(condition = rcPlotCondition("hm"), 
-				    p(textOutput("hmRcWarnings")),
+				  conditionalPanel(condition = jitterPlotCondition("hm"),
+				    p(textOutput("hmJitterWarnings")),
 				    actionButton("hmBackButton", "Back to heatmap"),
-				    uiOutput("hmRowColPlot", height = "100%", width = "100%")
+				    actionButton("hmBackPreviousButton", "Back to previous plot"), br(),
+				    uiOutput("hmJitterPlot", height = "100%", width = "100%"), br(),
+				    dataTableOutput('hmJitterTable')
 				  )
 				),
 				tabPanel("Export",
@@ -554,8 +565,15 @@ fluidPage(
 				tabPanel("Help",
 					h5("General", id = "general"),
 					p("You can move through the analysis steps by going to each of the tabs from left to right. All tabs work in a similar way: you can choose settings from the left panel, image or table on the right will automatically renew after that. Sometimes, it can take seconds to load. When moving from one tab to another, settings are saved automatically."),
+					HTML("In general, different tabs provide the following options:<ul>
+               <li>Data import - choose input dataset, option to filter rows/colums based on annotations and transpose matrix</li>
+               <li>Data pre-processing - option to aggregate columns with similar annotations, remove rows/columns with missing values, row centering and scaling, method for calculating principal components and imputing missing values</li>
+               <li>PCA - options related to PCA plot</li>
+               <li>Heatmap - options related to heatmap</li>
+               <li>Export - create link with current settings, download intermediate results</li>
+          </ul>"),
           p("The idle timeout (the time when browser session ends if user is inactive) is set to 30 minutes from server side but this can be overridden by browser configuration. To save uploaded data and selected settings, you can use a button on the 'Export' tab, a link is given to recover the settings later. This can also be used to send a link to a collaborator to show the same view. There is no planned expiration time for the links, users can delete the settings if they are concerned about the privacy. Though, when version of ClustVis changes, old saved settings may not be fully compatible with the new version if e.g. there are some new features. "),
-					h5("Data upload", id = "upload"),
+					h5("Data import", id = "upload"),
 					p("We aimed for a simple input data format. The numeric data matrix is situated in the bottom right corner, dimensions presented in rows and points in columns. Row labels and annotations are left from the matrix, column labels and annotations are above the matrix. Annotation labels are in the first row and column, respectively. Format of the input file is shown on the image below. Annotations are optional, data sets without annotations can be uploaded as well (on the example image, omitting rows 2-4 and/or columns B and C). When taking data from spreadsheet program (e.g. MS Excel), you can copy-paste the data to 'Paste data' box or export the data as delimited text file (ending with .csv or .tab) and then upload this file to ClustVis. Uploading Excel native files directly (.xls or .xlsx) doesn't work."),
 					img(src = "helpTab/uploadTableArrows.png", width = "100%"),
           p(),
@@ -588,6 +606,8 @@ fluidPage(
           dataTableOutput('helpDatasetTable'),
 					h5("List of pathways available", id = "pathways"),
 					dataTableOutput('helpPathwayTable'),
+					h5("Annotations based filtering", id = "filtering"),
+          p("After choosing a dataset, it is possible to filter out rows or columns based on annotation levels. By default, all levels are included, you can uncheck them one by one or click 'change all levels' and then check some of the levels to be included. Each level has a number in brackets that shows the number of rows or columns in the full dataset having this level. If multiple annotations are used for filtering, a subset is retained that meets all filtering criteria."),
           h5("Data pre-processing", id = "processing"),
 					p("On this tab, you can choose the method that is used for PCA. This method is also used for imputing missing values to the heatmap and it also determines, for example, whether values on the heatmap are centered or not. Number of components returned depends on the dimensions of the input data matrix. If there are more observations (n) than dimensions (d) then d principal components are calculated. Otherwise, the number of principal components is n."),
 					h5("PCA and heatmap", id = "pca_heatmap"),
@@ -598,13 +618,16 @@ fluidPage(
 					p("If there are more groups than available shapes, some groups are not shown on the plot."),
 					h5("Interactivity of the plots", id = "interactivity"),
           p("With the recent updates of the tool, interactive mode was added to both PCA plot and heatmap which allows to click and hover over specific areas of the plot. This mode is available when going to PCA or heatmap tab and choosing 'change plot labels', 'add interactivity'. Interactivity is still experimental, we are hoping to get feedback from users. It is not made the default option because plots are slower to render. It is recommended to first set other options in non-interactive mode and then switch to interactive mode as the last step. For larger datasets where an interactive plot would take too long to render, it is automatically switched to non-interactive mode and a warning message is shown."),
-          HTML("Interactive mode includes the following additional options:<ul>
+          HTML(str_c("Interactive mode includes the following additional options:<ul>
                <li>Hover over a point on the PCA plot to see additional information.</li>
-               <li>Click on a point on the PCA plot to see values from one column on a separate jitter plot.</li>
+               <li>Click on a point on the PCA plot to see values from one column on a separate jitter plot. If '", linkAnno, "' appears among column annotations, the points are linked to an external resource instead.</li>
                <li>Hover over a row name, column name or cell on the heatmap to see additional information.</li>
                <li>Click on a row name, column name or cell on the heatmap to see values from one row, column or cell on a separate jitter plot.</li>
-          </ul>"),
-          p("The jitter plot is also interactive in a similar manner like PCA plot and heatmap. If there is a row or column annotation called 'plot_link', the dots on the jitter plot are clickable and can be directed to an external resource. If 'plot_link' appears among column annotations, the same links are also created directly for points on the PCA plot. When following an external link, 'Control' (in Windows) or 'Command' (in Mac) key should be hold down to force the external link opening on a new tab, otherwise Shiny session is lost. The default tooltips can be overridden by having a row or column annotation called 'plot_tooltip'."),
+               <li>Hover over a point on the jitter plot to see additional information.</li>
+               <li>Click on a point on the jitter plot to go to an external resource. It is only available if there is a row or column annotation called '", linkAnno, "'.</li>
+               <li>Click on a column name on the jitter plot to see a reduced jitter plot with values from only this column.</li>
+          </ul>")),
+          p(str_c("The default tooltips can be overridden by having a row or column annotation called '", tooltipAnno, "'. Below the jitter plot, a table is shown that includes all data on the plot and, in addition, information about missing values. Row and column IDs in the table are changed into links if '", linkAnno, "' appears among annotations.")),
 					h5("Interpreting the output", id = "interpretation"),
 					p("Principal Component Analysis performs a linear transformation to turn multivariate data into a form where variables are uncorrelated (see Jolliffe, Ian. Principal component analysis. John Wiley & Sons, Ltd, 2002). These new uncorrelated variables are called Principal Components and they are ordered descending based on the variance explained. Thus, first two components show the data from the angle of most variability, i.e. they create the most \"widespread\" 2D projection. They also approximate the distances between points. Thus, if ellipses on the PCA plot are not overlapping, these groups form separate clusters."),
 					p("However, one should be careful when first components describe just a small proportion of the total variation. In this case, approximating original data with 2D projection can be misleading. "),
@@ -625,12 +648,16 @@ fluidPage(
           </ul>"),
 					#http://support.minitab.com/en-us/minitab/17/topic-library/modeling-statistics/multivariate/item-and-cluster-analyses/linkage-methods/
 					HTML("Available linkage methods:<ul><li>single linkage - using two closest objects from two clusters to be merged</li><li>complete linkage - using two farthest objects</li><li>average - average distance of all possible pairs</li><li>McQuitty - average distance of the two clusters (to be merged) to the cluster of interest</li><li>median - median distance of all possible pairs</li><li>centroid - distance between cluster means</li><li>Ward linkage - using sum of squared differences from points to centroids as the distance</li></ul>"),
+					h5("Separate editions", id = "editions"),
+					p("There is a", a("separate ClustVis edition", href = "http://biit.cs.ut.ee/clustvis_large/", target = "_blank"), "available which has higher limits for size of the uploaded data. Also, a", a("Docker image", href = "https://hub.docker.com/r/taunometsalu/clustvis/", target = "_blank"), "is available in Docker Hub which makes it easier to run ClustVis locally. See", a("GitHub page", href = "https://github.com/taunometsalu/ClustVis", target = "_blank"), "for more information about the local installation."),
           footer
 				),
 				tabPanel("News",
 					h5("Version history:"),
+          p("3rd May 2016 - there is now a", a("separate edition", href = "http://biit.cs.ut.ee/clustvis_large/", target = "_blank"), "of ClustVis with higher limits. Also, a", a("Docker image", href = "https://hub.docker.com/r/taunometsalu/clustvis/", target = "_blank"), "is now available in Docker Hub which makes it easier to run ClustVis locally. See", a("GitHub page", href = "https://github.com/taunometsalu/ClustVis", target = "_blank"), "for more information about the local installation."),
+					p("17th February 2016 - option 'change all levels' for annotations based filtering, jitter plot x-axis names link to reduced jitter plot, table is shown now below jitter plot, now always adding links to heatmap cells if row and column names have them, automatic calculation of jitter plot height improved, font of the interactive plots changed to Arial, fixed jitter plot tooltips with NA values and jitter plot with aggregated values, option to show violin plot or box plot without points, 'Data upload' tab renamed to 'Data import' to better reflect the meaning, slightly modified heatmap caption text, loading message added if calculation is in process, general logic of the tabs added to the help page, fixed showing filtering options after transposing, external links open on a new tab without necessarily holding down 'Ctrl' key, annotations with many levels removed automatically from the heatmap."),
 					p("18th January 2016 - fix 'show imputed values' to show scaled heatmap when unchecked, option to use a custom gene list when subsetting ArrayExpress dataset, message about gene names that were not present in the dataset, limit for maximum number of components to be calculated (for performance reasons), warning message about maximum uploaded file size added, pathway genes sorted alphabetically, shiny package updated to 0.13."),
-					p("8th January 2016 - major restructuring: interactive mode introduced (see help page), extended input file format and related changes to allow row annotations for the heatmap (including row filtering, different detection of annotation lines, modified help page), colored labels for annotation based filtering, annotation groups introduced, option to remove rows and/or columns with many missing values, option to remove constant columns, option to transpose heatmap, option to show missing values on heatmap, option to set general font size on heatmap, font of annotation legend automatically scaled down if it doesn't fit to the plot, option to add space between clusters on heatmap, corrected Ward linkage method added, some data format checks and warning messages, limit for maximum number of annotation levels shown on PCA plot and heatmap, footer changed into a link, Shiny Server updated to 1.4.1.759 and Shiny package updated to 0.12.2, some custom changes in the pheatmap R code merged to the main branch of pheatmap R package."),
+					p("8th January 2016 - major restructuring: interactive mode introduced (see help page), row annotations introduced (thank you, Sven-Eric Schelhorn, for the idea!), extended input file format and related changes to allow row annotations for the heatmap (including row filtering, different detection of annotation lines, modified help page), colored labels for annotation based filtering, annotation groups introduced, option to remove rows and/or columns with many missing values, option to remove constant columns, option to transpose heatmap, option to show missing values on heatmap, option to set general font size on heatmap, font of annotation legend automatically scaled down if it doesn't fit to the plot, option to add space between clusters on heatmap, corrected Ward linkage method added, some data format checks and warning messages, limit for maximum number of annotation levels shown on PCA plot and heatmap, footer changed into a link, Shiny Server updated to 1.4.1.759 and Shiny package updated to 0.12.2, some custom changes in the pheatmap R code merged to the main branch of pheatmap R package."),
 					p("27th May 2015 - ClustVis is now running on ", HTML("<a href='https://www.docker.com/' target='_blank'>Docker</a>;"), " reference to published article added to the footer."),
 					p("21st April 2015 - option to transpose the data matrix added under 'Data upload'; maximal heatmap dimension increased to 1200; a small bug fixed related with uploading a dataset without annotations."),
 					p("17th April 2015 - second revision based on comments from reviewers: number of species increased to 17; more informative error messages for data upload; number of NAs in rows and columns is shown during upload; help page improved (including list of all datasets and pathways)."),
