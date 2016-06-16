@@ -1175,7 +1175,7 @@ shinyServer(function(input, output, session) {
     grNew = getChangeAllCheckboxes(values$data$inputSaved, annoCol, annoRow)
     grOld = values$changeAllOld
     #which checkbox has changed state (one at a time)
-    if(!is.null(grNew) & !is.null(grOld)){
+    if(!is.null(grNew) & !is.null(grOld) & (length(grNew) == length(grOld))){
       checked = which(grNew & !grOld)
       unchecked = which(!grNew & grOld)
       if(length(checked) > 0){

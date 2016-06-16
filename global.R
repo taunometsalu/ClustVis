@@ -105,6 +105,7 @@ if(clustvisEdition != "original"){
   maxTooltipsHm = 120
   maxTooltipsJitterPlot = 150
   maxUploadMB = 15
+  maxAnnoLevels = 50
   titleSufix = str_c(" - ", clustvisEdition, " edition")
 }
 
@@ -229,7 +230,7 @@ removeTechnical = function(anno){
 sendToLog = function(data){
   inp = data$inputSaved$uploadDataInput
   v = c(format(Sys.time()), inp, nrow(data$mat), ncol(data$mat), clustvisEdition)
-  cat(str_c(v, collapse = ";"), "\n", append = TRUE, file = logFile)
+  cat(str_c(v, collapse = ";"), "\n", append = TRUE, file = logFile, sep = "")
 }
 
 #empty if group changed, otherwise keep previous settings
@@ -623,7 +624,7 @@ updateProcOptions = function(session, annoCol, annoGroupsCol){
 
 updatePcaOptions = function(session, mat, input){
   cnFiltered = convertAnno(input$procAnno)
-  if(cnFiltered != fakeAnno){
+  if(length(cnFiltered) > 1 || cnFiltered != fakeAnno){
     colorSel = cnFiltered[1]
   } else {
     colorSel = NULL
@@ -1048,7 +1049,13 @@ annoLevels = function(anno){
     tab = apply(anno, 2, function(x) length(unique(x)))
     rm = names(tab[tab > maxAnnoLevels])
     if(length(rm) == 0) rm = NULL
-    res = list(anno = anno[, !(colnames(anno) %in% rm), drop = FALSE], removed = rm)
+    keepCols = !(colnames(anno) %in% rm)
+    if(any(keepCols)){
+      annoKeep = anno[, keepCols, drop = FALSE]
+    } else {
+      annoKeep = NULL
+    }
+    res = list(anno = annoKeep, removed = rm)
   }
   res
 }
