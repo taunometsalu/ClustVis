@@ -23,7 +23,11 @@ shinyServer(function(input, output, session) {
 			settingsLarge = (input$uploadDataInput == 6)
 			if(settingsSmall || settingsLarge){
 				if(settingsSmall){
-					sessPathUsed = sessPath
+				  if(values$getVar == "e"){
+				    sessPathUsed = sessPathExternal
+				  } else {
+				    sessPathUsed = sessPath
+				  }
 				} else {
 					sessPathUsed = sessPathLarge
 				}
@@ -1103,11 +1107,15 @@ shinyServer(function(input, output, session) {
 		if("s" %in% names(search) && search$s != ""){
 			var = "s"
 			sel = "4"
+		} else if("e" %in% names(search) && search$e != ""){
+		  var = "e"
+		  sel = "4"
 		} else if("p" %in% names(search) && search$p != ""){
 			var = "p"
 			sel = "6"
 		}
-		if(var %in% c("s", "p")){
+		values$getVar = var
+		if(var %in% c("s", "e", "p")){
 			id = search[[var]]
 			updateTabsetPanel(session, "tabs1", selected = "Data import")
 			updateRadioButtons(session, "uploadDataInput", selected = sel)

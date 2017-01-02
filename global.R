@@ -5,6 +5,7 @@ path = "/srv/shiny-server/" #path of this file
 libPath = "/usr/local/lib/R/site-library/" #path of R libraries
 sessPathLarge = "/srv/settings_large/" #where to save settings with large datasets
 sessPath = "/srv/settings/" #where to save settings
+sessPathExternal = "/srv/settings_external/" #where to save settings for externally saved datasets
 pbPathPrefix = "/srv/data_pb/" #path of MEM files
 
 .libPaths(libPath)
