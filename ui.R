@@ -48,13 +48,22 @@ jitterPlotOptions = function(type){
 
 footer = h6("Metsalu, Tauno and Vilo, Jaak. ", a("Clustvis: a web tool for visualizing clustering of multivariate data using Principal Component Analysis and heatmap.", href = "http://nar.oxfordjournals.org/content/43/W1/W566.full", target = "_blank"), "Nucleic Acids Research, 43(W1):W566–W570, 2015. doi: 10.1093/nar/gkv468.")
 
+titlePrefix = "ClustVis"
+titleMiddle = ": a web tool for visualizing clustering of multivariate data (BETA)"
+titleFull = str_c(titlePrefix, titleMiddle, titleSufix)
+
 shinyUI(
 fluidPage(
   useShinyjs(),
   #https://cran.r-project.org/web/packages/shinyjs/vignettes/overview.html
   #http://stackoverflow.com/questions/13338780/how-to-make-twitter-bootstrap-tooltips-have-multiple-lines
   extendShinyjs(text = jsCode),
-  titlePanel(str_c("ClustVis: a web tool for visualizing clustering of multivariate data (BETA)", titleSufix)),
+  titlePanel(
+    fluidRow(
+      img(src = "frontPage/logo_small.png", width = 125, style = "margin-top:-10px; margin-right:-10px"),
+      str_c(titleMiddle, titleSufix), style = "margin-left:0px;"
+    )
+  ),
   sidebarLayout(
 		sidebarPanel(
 			conditionalPanel(condition = "input.tabs1 == 'Introduction'",
@@ -654,6 +663,7 @@ fluidPage(
 				),
 				tabPanel("News",
 					h5("Version history:"),
+					p("30th January 2017 - added ClustVis logo."),
 					p("16th June 2016 - increased the maximum number of heatmap annotation levels for large data edition; a small bug fix."),
           p("3rd May 2016 - there is now a", a("separate edition", href = "http://biit.cs.ut.ee/clustvis_large/", target = "_blank"), "of ClustVis with higher limits. Also, a", a("Docker image", href = "https://hub.docker.com/r/taunometsalu/clustvis/", target = "_blank"), "is now available in Docker Hub which makes it easier to run ClustVis locally. See", a("GitHub page", href = "https://github.com/taunometsalu/ClustVis", target = "_blank"), "for more information about the local installation."),
 					p("17th February 2016 - option 'change all levels' for annotations based filtering, jitter plot x-axis names link to reduced jitter plot, table is shown now below jitter plot, now always adding links to heatmap cells if row and column names have them, automatic calculation of jitter plot height improved, font of the interactive plots changed to Arial, fixed jitter plot tooltips with NA values and jitter plot with aggregated values, option to show violin plot or box plot without points, 'Data upload' tab renamed to 'Data import' to better reflect the meaning, slightly modified heatmap caption text, loading message added if calculation is in process, general logic of the tabs added to the help page, fixed showing filtering options after transposing, external links open on a new tab without necessarily holding down 'Ctrl' key, annotations with many levels removed automatically from the heatmap."),
@@ -678,6 +688,6 @@ fluidPage(
 				id = "tabs1"
 			)
 		)
-	)
+	), title = titleFull
 )
 )
