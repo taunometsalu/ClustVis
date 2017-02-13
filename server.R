@@ -216,7 +216,9 @@ shinyServer(function(input, output, session) {
 		data2[is.na(data2)] = ""
     
 		#guess border between annotations and numeric data:
-		if(gAnno || !is.numeric(input$uploadNbrColAnnos) || input$uploadNbrColAnnos < 0 || input$uploadNbrColAnnos >= nrow(data)){
+		if(gAnno || !is.numeric(input$uploadNbrRowAnnos) || !is.numeric(input$uploadNbrColAnnos) || 
+		            input$uploadNbrRowAnnos < 0 || input$uploadNbrColAnnos < 0 ||
+		            input$uploadNbrRowAnnos >= ncol(data) || input$uploadNbrColAnnos >= nrow(data)){
 		  data2num = data2; suppressWarnings(class(data2num) <- "numeric")
 		  numericCells = !is.na(data2num) | (data2 == "")
 		  numericRows = rowSums(numericCells)
@@ -229,23 +231,25 @@ shinyServer(function(input, output, session) {
 		    data3num = data3; suppressWarnings(class(data3num) <- "numeric")
 		    intCells = is.na(data3num) | ((data3int - round(data3num, 10)) == 0)
         if(!all(intCells)){
+          #find how far the rows with integers go (which presumably belong to numeric annotations)
+          #if they go till the end of the matrix, consider them as part of numeric matrix, not annotations
 		      intRowLast = as.vector(intCells[nrow(intCells), ])
-		      nAnnoRow = nAnnoRow + which(!intRowLast)[1] - 1
+		      nAnnoRow = nAnnoRow + ifelse(all(intRowLast), 0, which(!intRowLast)[1] - 1)
 		      intColLast = as.vector(intCells[, ncol(intCells)])
-		      nAnnoCol = nAnnoCol + which(!intColLast)[1] - 1
+		      nAnnoCol = nAnnoCol + ifelse(all(intColLast), 0, which(!intColLast)[1] - 1)
 		    }
 		  }
 		} else {
 		  nAnnoCol = input$uploadNbrColAnnos
 		  nAnnoRow = input$uploadNbrRowAnnos
 		}
-		if(nAnnoCol == 0){
+		if(nAnnoCol == 0 | nAnnoRow == ncol(data)){
 			annoCol = NULL
 		} else {
 		  annoCol = as.data.frame(t(data[1:nAnnoCol, (nAnnoRow + 1):ncol(data), drop = FALSE]))
 		  annoCol[is.na(annoCol)] = "NA" #to make filtering and heatmap annotations work correctly
 		}
-    if(nAnnoRow == 0){
+    if(nAnnoRow == 0 | nAnnoCol == nrow(data)){
 		  annoRow = NULL
 		} else {
 			annoRow = as.data.frame(data[(nAnnoCol + 1):nrow(data), 1:nAnnoRow, drop = FALSE])

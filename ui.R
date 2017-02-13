@@ -663,6 +663,7 @@ fluidPage(
 				),
 				tabPanel("News",
 					h5("Version history:"),
+					p("13th February 2017 - fixed a bug when reading in a dataset with both integers and non-integers in the numeric matrix."),
 					p("30th January 2017 - added ClustVis logo."),
 					p("16th June 2016 - increased the maximum number of heatmap annotation levels for large data edition; a small bug fix."),
           p("3rd May 2016 - there is now a", a("separate edition", href = "http://biit.cs.ut.ee/clustvis_large/", target = "_blank"), "of ClustVis with higher limits. Also, a", a("Docker image", href = "https://hub.docker.com/r/taunometsalu/clustvis/", target = "_blank"), "is now available in Docker Hub which makes it easier to run ClustVis locally. See", a("GitHub page", href = "https://github.com/taunometsalu/ClustVis", target = "_blank"), "for more information about the local installation."),
