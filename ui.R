@@ -663,6 +663,7 @@ fluidPage(
 				),
 				tabPanel("News",
 					h5("Version history:"),
+					p("4th April 2017 - added option to use grayscale colors for PCA plot groups (thank you, Julian R. Marchesi, for the idea!)."),
 					p("13th February 2017 - fixed a bug when reading in a dataset with both integers and non-integers in the numeric matrix."),
 					p("30th January 2017 - added ClustVis logo."),
 					p("16th June 2016 - increased the maximum number of heatmap annotation levels for large data edition; a small bug fix."),

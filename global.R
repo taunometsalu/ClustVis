@@ -55,6 +55,7 @@ colortab = brewer.pal.info #all RColorBrewer colors
 colSequential = rownames(colortab)[colortab$category == "seq"]
 colDiverging = rownames(colortab)[colortab$category == "div"]
 colQualitative = rownames(colortab)[colortab$category == "qual"]
+colQualitative = c(colQualitative, "Grayscale")
 annoLegendColors = brewer.pal(9, "Set1")[-6] #without yellow
 schemeListHM = c(colSequential, colDiverging)
 names(schemeListHM) = str_c(c(rep("Sequential", length(colSequential)), rep("Diverging", length(colDiverging))), ": ", schemeListHM)
@@ -962,7 +963,12 @@ plotPCA = function(data){
 	
 	#set color
 	if(nColor <= 8 & length(grColor) > 0 & inputSaved$pcaColor != "Black"){
-	  q = q + scale_colour_brewer(palette = inputSaved$pcaColor)
+	  if(inputSaved$pcaColor == "Grayscale"){
+	    #http://stackoverflow.com/questions/20125253/ggplot-2-barplot-with-a-diverging-colour-palette
+	    q = q + scale_colour_manual(values = rev(brewer.pal(nColor, "Greys")))
+	  } else {
+	    q = q + scale_colour_brewer(palette = inputSaved$pcaColor)
+	  }
 	} else {
 	  q = q + scale_colour_manual(values = rep("black", nColor))
 	}
@@ -1044,7 +1050,7 @@ calcOrdering = function(mat, distance, linkage, ordering){
 }
 
 annoLevels = function(anno){
-  if(is.na(anno)){
+  if(is.vector(anno) && length(anno) == 1 && is.na(anno)){
     res = list(anno = anno, removed = NULL)
   } else {
     tab = apply(anno, 2, function(x) length(unique(x)))
