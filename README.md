@@ -13,6 +13,7 @@ mkdir ~/customClustvis/
 cd ~/customClustvis/
 wget https://github.com/taunometsalu/ClustVis/archive/master.zip
 unzip master.zip
+chmod -R go+rx ~/customClustvis/
 sudo docker run -d \
 	--name customClustvis \
 	-p <myPort>:3838 \
