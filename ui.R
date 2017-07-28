@@ -1,7 +1,7 @@
 #Author: Tauno Metsalu
 #Copyright: 2016 University of Tartu
 
-source("/srv/shiny-server/global.R")
+#source("/srv/shiny-server/global.R")
 
 h = 800
 pcaPlot = uiOutput("pca", height = "100%", width = "100%")

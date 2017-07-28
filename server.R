@@ -1,7 +1,7 @@
 #Author: Tauno Metsalu
 #Copyright: 2016 University of Tartu
 
-source("/srv/shiny-server/global.R")
+#source("/srv/shiny-server/global.R")
 
 shinyServer(function(input, output, session) {
 	readData = reactive({
