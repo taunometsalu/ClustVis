@@ -1,5 +1,5 @@
 #Author: Tauno Metsalu
-#Copyright: 2016 University of Tartu
+#Copyright: 2017 University of Tartu
 
 path = "/srv/shiny-server/" #path of this file
 libPath = "/usr/local/lib/R/site-library/" #path of R libraries
@@ -20,7 +20,6 @@ library(FactoMineR)
 library(pcaMethods)
 library(gProfileR)
 library(plyr)
-library(Hmisc)
 library(gtable)
 library(ggplot2)
 library(Cairo) #nicer ggplot2 output
@@ -113,6 +112,7 @@ if(clustvisEdition != "original"){
 
 #http://stackoverflow.com/questions/18037737/how-to-change-maximum-upload-size-exceeded-restriction-in-shiny-and-save-user
 options(shiny.maxRequestSize = maxUploadMB * 1024 ^ 2)
+options(shiny.sanitize.errors = FALSE) #avoid generic error messages
 options(stringsAsFactors = FALSE)
 setwd(sessPath)
 
@@ -480,7 +480,7 @@ defaultMapping = function(mat){
 
 
 dataProcess = function(data){
-	if(is.null(data$inputSaved)) return(NULL)
+	if(is.null(data$inputSaved) | is.null(data$mat)) return(NULL)
 	set.seed(124987234)
 	inputSaved = data$inputSaved
 	procCentering = toBoolean(inputSaved$procCentering)
@@ -947,7 +947,7 @@ plotPCA = function(data){
 	
 	#http://stackoverflow.com/questions/11393123/controlling-ggplot2-legend-display-order
 	q = ggplot(x2, aes(x = pcx, y = pcy, shape = groupingShape, colour = groupingColor, label = sample)) + 
-	  xlab(xl) + ylab(yl) + xlim(xrange) + ylim(yrange) + 
+	  xlab(xl) + ylab(yl) + coord_cartesian(xlim = xrange, ylim = yrange) +
 	  geom_point(size = psize) + coord_fixed() + ggtitle("") + 
 	  theme_bw(base_size = inputSaved$pcaFontSize) + 
 	  theme(legend.position = inputSaved$pcaLegendPosition, plot.margin = unit(margins, "bigpts"))
@@ -990,13 +990,13 @@ plotPCA = function(data){
 	#write text if no tooltips
 	if(pcaShowSampleIds & !pcaInteractivity){
 	  #http://stackoverflow.com/questions/18337653/remove-a-from-legend-when-using-aesthetics-and-geom-text
-	  q = q + geom_text(hjust = 0.5, vjust = -1, show_guide = FALSE)
+	  q = q + geom_text(hjust = 0.5, vjust = -1, show.legend = FALSE)
 	}
 	
 	#add ellipses
 	if(showEllipses){
 	  #http://stackoverflow.com/questions/5415132/object-not-found-error-with-ggplot2-when-adding-shape-aesthetic
-	  q = q + geom_path(aes(shape = NULL), data = ellCoord, size = inputSaved$pcaEllipseLineWidth, linetype = inputSaved$pcaEllipseLineType, show_guide = FALSE)
+	  q = q + geom_path(aes(shape = NULL), data = ellCoord, size = inputSaved$pcaEllipseLineWidth, linetype = inputSaved$pcaEllipseLineType, show.legend = FALSE)
 	}
 	
   list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, 

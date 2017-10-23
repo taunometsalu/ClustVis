@@ -1,5 +1,5 @@
 #Author: Tauno Metsalu
-#Copyright: 2016 University of Tartu
+#Copyright: 2017 University of Tartu
 
 #source("/srv/shiny-server/global.R")
 
@@ -293,7 +293,7 @@ fluidPage(
 				  conditionalPanel(condition = str_c("input.hmAnnoRow != '", fakeAnno, "'"),
 				    checkboxGroupInput("hmAnnoRow", "Row annotations:", choices = fakeAnno, selected = fakeAnno)
           ),
-				  sliderInput("hmPlotWidth", "Plot width:", value = 25, min = 15, max = 50, step = 0.1),
+				  sliderInput("hmPlotWidth", "Plot width:", value = 25, min = 5, max = 50, step = 0.1),
 				  numericInput("hmPlotRatio", "Plot ratio (height / width):", value = 0.8, min = 0.01, max = 100, step = 0.01),
 				  numericInput("hmColorRangeMax", "Color range maximum:", value = 5, step = 0.001),
 				  numericInput("hmColorRangeMin", "Color range minimum:", value = -5, step = 0.001),
@@ -663,6 +663,7 @@ fluidPage(
 				),
 				tabPanel("News",
 					h5("Version history:"),
+					p("23rd October 2017 - updated Shiny server version and several packages. Decreased minimum heatmap plot width."),
 					p("4th April 2017 - added option to use grayscale colors for PCA plot groups (thank you, Julian R. Marchesi, for the idea!)."),
 					p("13th February 2017 - fixed a bug when reading in a dataset with both integers and non-integers in the numeric matrix."),
 					p("30th January 2017 - added ClustVis logo."),

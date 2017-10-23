@@ -1,5 +1,5 @@
 #Author: Tauno Metsalu
-#Copyright: 2016 University of Tartu
+#Copyright: 2017 University of Tartu
 
 #source("/srv/shiny-server/global.R")
 
@@ -386,7 +386,7 @@ shinyServer(function(input, output, session) {
 	#initial data
 	output$uploadAnnoLevelsTable = renderTable({
 		values$data$annoLevsTab
-	})
+	}, rownames = TRUE, bordered = TRUE, align = "l")
 
 	output$uploadAnnoColInfo = renderPrint({
 		if(is.null(values$data$annoCol)){
@@ -403,7 +403,7 @@ shinyServer(function(input, output, session) {
 	    if(is.null(values$data$annoCol)) return(NULL)
 	    cutMatrix(t(values$data$annoCol))
 	  })
-	})
+	}, rownames = TRUE, bordered = TRUE, align = "l")
   
   output$uploadAnnoRowInfo = renderPrint({
     if(is.null(values$data$annoRow)){
@@ -418,7 +418,7 @@ shinyServer(function(input, output, session) {
   output$uploadAnnoRowTable = renderTable({
     if(is.null(values$data$annoRow)) return(NULL)
     cutMatrix(values$data$annoRow)
-  })  
+  }, rownames = TRUE, bordered = TRUE, align = "l")  
 	
 	output$uploadDataInfo = renderPrint({
 		if(is.null(values$data$mat)){
@@ -432,7 +432,7 @@ shinyServer(function(input, output, session) {
 	
 	output$uploadDataTable = renderTable({
 		cutMatrix(values$data$mat)
-	})
+	}, rownames = TRUE, bordered = TRUE, align = "l")
   
   output$uploadWarnings = renderText({
     missing = c(input$uploadPbDataset == "", (input$uploadRowFiltering == 1) & (input$uploadPbPathway == ""), (input$uploadRowFiltering == 4) & (input$uploadGeneList == ""))
@@ -538,7 +538,7 @@ shinyServer(function(input, output, session) {
 	  withProgress(message = 'Loading the data, please wait ...', value = NULL, {
 	    getProc()$sizeTable
 	  })
-	})
+	}, rownames = TRUE, bordered = TRUE, align = "l")
   
 	output$procNAsRows = renderTable({
 	  gp = getProc()$naTableRows
@@ -546,7 +546,7 @@ shinyServer(function(input, output, session) {
 	    need(!is.null(gp), "No NAs in rows.")
 	  )
 	  cutMatrix(gp, digits = 0)
-	})
+	}, rownames = TRUE, bordered = TRUE, align = "l")
 	
 	output$procNAsCols = renderTable({
 	  gp = getProc()$naTableCols
@@ -554,7 +554,7 @@ shinyServer(function(input, output, session) {
       need(!is.null(gp), "No NAs in columns.")
     )
     cutMatrix(gp, digits = 0)
-	})
+	}, rownames = TRUE, bordered = TRUE, align = "l")
 	
 	output$procPcaVarInfo = renderPrint({
 		vt = getProc()$varTable
@@ -569,7 +569,7 @@ shinyServer(function(input, output, session) {
 	
 	output$procPcaVarTable = renderTable({
 		cutMatrix(getProc()$varTable)
-	})
+	}, rownames = TRUE, bordered = TRUE, align = "l")
 	
 	output$procMatPcaInfo = renderPrint({
 		mp = getProc()$matPca
@@ -584,7 +584,7 @@ shinyServer(function(input, output, session) {
 	
 	output$procMatPca = renderTable({
 		cutMatrix(getProc()$matPca)
-	})
+	}, rownames = TRUE, bordered = TRUE, align = "l")
 
 	output$procPcaLoadingsInfo = renderPrint({
 	  ld = getProc()$pcaLoadings
@@ -599,7 +599,7 @@ shinyServer(function(input, output, session) {
   
 	output$procPcaLoadings = renderTable({
 	  cutMatrix(getProc()$pcaLoadings)
-	})
+	}, rownames = TRUE, bordered = TRUE, align = "l")
   
 	#PCA
 	getPCA = reactive({
@@ -885,8 +885,9 @@ shinyServer(function(input, output, session) {
 	      
 	      if(length(grc$nextLinks) == length(unique(grc$points$gr))){ #if not cell plot
 	        grobX = names[searchPrefix("axis.2-1-2-1", names)]
+	        grobXsub = childNames(grid.get(grobX))
 	        tooltipsX = rep("", length(grc$nextLinks)) #no tooltips
-	        grid.garnish(grobX, `data-toggle` = rep("tooltip", length(tooltipsX)), 
+	        grid.garnish(grobXsub, `data-toggle` = rep("tooltip", length(tooltipsX)), 
 	                     class = rep(str_c(grc$plotType, "Cell"), length(tooltipsX)), 
 	                     id = grc$nextLinks, group = FALSE)
 	      }
