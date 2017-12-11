@@ -477,7 +477,7 @@ fluidPage(
 					a("BIIT", href = "http://biit.cs.ut.ee/", target = "_blank"), 
 					"Research Group. The source code of ClustVis is available in ",
 					HTML("<a href='https://github.com/taunometsalu/ClustVis' target='_blank'>GitHub</a>."),
-          "Please submit bug reports and feature requests to GitHub issues page or send to tauno.metsalu [at] ut.ee."),
+          "Please submit bug reports and feature requests to GitHub issues page or send to biit.support [at] ut.ee."),
 					br(),
 					img(src = "frontPage/frontPage.png", width = "100%"),
           #http://stackoverflow.com/questions/26058909/r-shiny-avoid-scrollbars-when-using-googlevis-charts-in-tabpanels
@@ -663,6 +663,7 @@ fluidPage(
 				),
 				tabPanel("News",
 					h5("Version history:"),
+					p("11th December 2017 - some bug fixes and optimizations."),
 					p("23rd October 2017 - updated Shiny server version and several packages. Decreased minimum heatmap plot width."),
 					p("4th April 2017 - added option to use grayscale colors for PCA plot groups (thank you, Julian R. Marchesi, for the idea!)."),
 					p("13th February 2017 - fixed a bug when reading in a dataset with both integers and non-integers in the numeric matrix."),

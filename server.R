@@ -227,10 +227,10 @@ shinyServer(function(input, output, session) {
 		  nAnnoCol = max(c(0, which(numericRows < numericRows[nrow(data2)])))
 		  if((nAnnoCol < nrow(data)) & (nAnnoRow < ncol(data))){
 		    data3 = data2[(nAnnoCol + 1):nrow(data2), (nAnnoRow + 1):ncol(data2), drop = FALSE]
-		    data3int = data3; suppressWarnings(class(data3int) <- "integer")
+		    data3int = data3; suppressWarnings(class(data3int) <- "integer") #large integers may convert to NA
 		    data3num = data3; suppressWarnings(class(data3num) <- "numeric")
 		    intCells = is.na(data3num) | ((data3int - round(data3num, 10)) == 0)
-        if(!all(intCells)){
+        if(!all(intCells, na.rm = TRUE)){
           #find how far the rows with integers go (which presumably belong to numeric annotations)
           #if they go till the end of the matrix, consider them as part of numeric matrix, not annotations
 		      intRowLast = as.vector(intCells[nrow(intCells), ])

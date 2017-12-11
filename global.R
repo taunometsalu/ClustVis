@@ -9,26 +9,28 @@ sessPathExternal = "/srv/settings_external/" #where to save settings for externa
 pbPathPrefix = "/srv/data_pb/" #path of MEM files
 
 .libPaths(libPath)
-library(stringr)
-library(RNetCDF)
-library(shiny)
-library(shinyBS)
-library(reshape2)
-library(Hmisc)
-library(RColorBrewer)
-library(FactoMineR)
-library(pcaMethods)
-library(gProfileR)
-library(plyr)
-library(gtable)
-library(ggplot2)
-library(Cairo) #nicer ggplot2 output
-library(XML)
-library(grid)
-library(gridSVG)
-library(shinyjs)
-library(svglite) #faster SVG generation
-library(pheatmap)
+suppressPackageStartupMessages({
+  library(stringr)
+  library(RNetCDF)
+  library(shiny)
+  library(shinyBS)
+  library(reshape2)
+  library(Hmisc)
+  library(RColorBrewer)
+  library(FactoMineR)
+  library(pcaMethods)
+  library(gProfileR)
+  library(plyr)
+  library(gtable)
+  library(ggplot2)
+  library(Cairo) #nicer ggplot2 output
+  library(XML)
+  library(grid)
+  library(gridSVG)
+  library(shinyjs)
+  library(svglite) #faster SVG generation
+  library(pheatmap)
+})
 
 toolname = "clustvis"
 fakeAnno = " " #placeholder annotation (if annotations are missing)
@@ -496,7 +498,11 @@ dataProcess = function(data){
       mat = coll$mat
       mappingCol = coll$mapping
     } else {
-      annoCol = data$annoCol[, keep, drop = FALSE]
+      if(!is.null(data$annoCol) && all(keep %in% colnames(data$annoCol))){
+        annoCol = data$annoCol[, keep, drop = FALSE]
+      } else {
+        annoCol = NULL
+      }
       mat = data$mat
       if(!is.null(mat)){
         mappingCol = defaultMapping(mat)
