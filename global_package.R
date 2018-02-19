@@ -458,8 +458,8 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
   
   #http://stackoverflow.com/questions/11393123/controlling-ggplot2-legend-display-order
   q = ggplot(x2, aes(x = pcx, y = pcy, shape = groupingShape, colour = groupingColor, label = sample)) +
-    xlab(xl) + ylab(yl) + coord_cartesian(xlim = xrange, ylim = yrange) +
-    geom_point(size = pointSize) + coord_fixed() + ggtitle("") +
+    xlab(xl) + ylab(yl) + geom_point(size = pointSize) +
+    coord_fixed(xlim = xrange, ylim = yrange) + ggtitle("") +
     theme_bw(base_size = fontSize) +
     theme(legend.position = legendPosition, plot.margin = unit(margins, "bigpts"))
   

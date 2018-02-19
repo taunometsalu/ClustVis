@@ -663,6 +663,7 @@ fluidPage(
 				),
 				tabPanel("News",
 					h5("Version history:"),
+					p("19th February 2018 - major code refactoring to separate main functions; fix a bug about setting PCA plot axis limits (thank you, Abby Benninghoff, for letting us know about it!)."),
 					p("11th December 2017 - some bug fixes and optimizations."),
 					p("23rd October 2017 - updated Shiny server version and several packages. Decreased minimum heatmap plot width."),
 					p("4th April 2017 - added option to use grayscale colors for PCA plot groups (thank you, Julian R. Marchesi, for the idea!)."),
