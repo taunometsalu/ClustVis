@@ -722,7 +722,18 @@ createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, 
   colScheme = brewer.pal(n = 7, name = colorScheme)
   if(revScheme) colScheme = rev(colScheme)
   nbrColors = 100
+  colVec = colorRampPalette(colScheme)(nbrColors)
   colBreaks = seq(colorRangeMin, colorRangeMax, length.out = nbrColors + 1)
+  
+  #outside the specified range, set color to respective min/max color:
+  if(colorRangeMin != hmOptions$colorRangeMin){
+    colVec = c(head(colVec, 1), colVec)
+    colBreaks = c(hmOptions$colorRangeMin, colBreaks)
+  }
+  if(colorRangeMax != hmOptions$colorRangeMax){
+    colVec = c(colVec, tail(colVec, 1))
+    colBreaks = c(colBreaks, hmOptions$colorRangeMax)
+  }
   
   #current implementation of pheatmap reverses the annotations:
   annoRow2 = rev(annoRow2)
@@ -736,7 +747,7 @@ createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, 
                annotation_row = annoRow2, annotation_col = annoCol2, annotation_colors = legendColors,
                cluster_rows = hcRows, cluster_cols = hcCols,
                cutree_rows = nbrClustersRows, cutree_cols = nbrClustersCols,
-               color = colorRampPalette(colScheme)(nbrColors), breaks = colBreaks,
+               color = colVec, breaks = colBreaks,
                border_color = cellBorder,
                show_rownames = showRownames, fontsize_row = fontSizeRownames,
                show_colnames = showColnames, fontsize_col = fontSizeColnames,
