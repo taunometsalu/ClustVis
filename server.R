@@ -1,5 +1,5 @@
 #Author: Tauno Metsalu
-#Copyright: 2017 University of Tartu
+#Copyright: 2018 University of Tartu
 
 #source("/srv/shiny-server/global.R")
 
@@ -174,97 +174,25 @@ shinyServer(function(input, output, session) {
 			}
 		}
 		
-		#guess delimiter:
-		sepList = c(",", "\t", ";")
 		if(gSep){
-			rl = readLines(f, warn = FALSE)
-      rl = rl[rl != ""] #last line can be empty
-			sepNbrsMin = sapply(sepList, function(x) min(str_count(rl, x))) #minimal number of separators on a line
-			sep = sepList[which.max(sepNbrsMin)]
-			f2 = textConnection(rl) #create new connection
+		  sep = NA
 		} else {
-			sep = switch(input$uploadFileSep, '1' = ",", '2' = "\t", '3' = ";")
-			f2 = f
+		  sep = switch(input$uploadFileSep, '1' = ",", '2' = "\t", '3' = ";")
 		}
 		
-		readText = function(f, sep){
-			read.table(f, sep = sep, header = TRUE, fill = TRUE, colClasses = "character", 
-                 check.names = FALSE, comment.char = "")
-		}
-		safeRead = failwith(NULL, readText, quiet = TRUE)
-		message = NULL
-		data = safeRead(f2, sep)
-    if(!is.null(data)){
-      rn = data[, 1]
-      if(any(duplicated(rn))){
-        #make row names unique
-        rn = make.unique(rn)
-        message = str_c(message, "Row names were converted because they were not unique!")
-      }
-      cn = colnames(data)[-1]
-      if(any(duplicated(cn))){
-        #make column names unique
-        cn = make.unique(cn)
-        message = str_c(message, "Column names were converted because they were not unique!", sep = "\n")
-      }
-      data = data[, -1, drop = FALSE]
-      rownames(data) = rn
-      colnames(data) = cn
-    }
-		if(is.null(data) || nrow(data) < 1 || ncol(data) < 1) return(NULL)
-		data2 = apply(data, 1:2, function(x) gsub(",", ".", x))
-		data2[is.na(data2)] = ""
-    
-		#guess border between annotations and numeric data:
-		if(gAnno || !is.numeric(input$uploadNbrRowAnnos) || !is.numeric(input$uploadNbrColAnnos) || 
-		            input$uploadNbrRowAnnos < 0 || input$uploadNbrColAnnos < 0 ||
-		            input$uploadNbrRowAnnos >= ncol(data) || input$uploadNbrColAnnos >= nrow(data)){
-		  data2num = data2; suppressWarnings(class(data2num) <- "numeric")
-		  numericCells = !is.na(data2num) | (data2 == "")
-		  numericRows = rowSums(numericCells)
-		  numericCols = colSums(numericCells)
-		  nAnnoRow = max(c(0, which(numericCols < numericCols[ncol(data2)])))
-		  nAnnoCol = max(c(0, which(numericRows < numericRows[nrow(data2)])))
-		  if((nAnnoCol < nrow(data)) & (nAnnoRow < ncol(data))){
-		    data3 = data2[(nAnnoCol + 1):nrow(data2), (nAnnoRow + 1):ncol(data2), drop = FALSE]
-		    data3int = data3; suppressWarnings(class(data3int) <- "integer") #large integers may convert to NA
-		    data3num = data3; suppressWarnings(class(data3num) <- "numeric")
-		    intCells = is.na(data3num) | ((data3int - round(data3num, 10)) == 0)
-        if(!all(intCells, na.rm = TRUE)){
-          #find how far the rows with integers go (which presumably belong to numeric annotations)
-          #if they go till the end of the matrix, consider them as part of numeric matrix, not annotations
-		      intRowLast = as.vector(intCells[nrow(intCells), ])
-		      nAnnoRow = nAnnoRow + ifelse(all(intRowLast), 0, which(!intRowLast)[1] - 1)
-		      intColLast = as.vector(intCells[, ncol(intCells)])
-		      nAnnoCol = nAnnoCol + ifelse(all(intColLast), 0, which(!intColLast)[1] - 1)
-		    }
-		  }
+		if(gAnno){
+		  nAnnoCol = nAnnoRow = NA
 		} else {
 		  nAnnoCol = input$uploadNbrColAnnos
 		  nAnnoRow = input$uploadNbrRowAnnos
 		}
-		if(nAnnoCol == 0 | nAnnoRow == ncol(data)){
-			annoCol = NULL
-		} else {
-		  annoCol = as.data.frame(t(data[1:nAnnoCol, (nAnnoRow + 1):ncol(data), drop = FALSE]))
-		  annoCol[is.na(annoCol)] = "NA" #to make filtering and heatmap annotations work correctly
-		}
-    if(nAnnoRow == 0 | nAnnoCol == nrow(data)){
-		  annoRow = NULL
-		} else {
-			annoRow = as.data.frame(data[(nAnnoCol + 1):nrow(data), 1:nAnnoRow, drop = FALSE])
-	    annoRow[is.na(annoRow)] = "NA"
-		}
-		if(nAnnoCol == nrow(data) | nAnnoRow == ncol(data)){
-			mat = NULL
-		} else {
-			mat = data2[(nAnnoCol + 1):nrow(data2), (nAnnoRow + 1):ncol(data2), drop = FALSE]
-			mat = apply(mat, 1:2, as.numeric)
-		}
-		annoGroupsCol = annoGroupsRow = NULL
-		return(list(annoCol = annoCol, annoRow = annoRow, mat = mat, sep = sep, 
-                inputSaved = input, annoLevsTab = NULL, message = message,
-		            annoGroupsCol = annoGroupsCol, annoGroupsRow = annoGroupsRow))
+		
+		l = readFile(file = f, sep = sep, nbrRowAnnos = nAnnoRow, nbrColAnnos = nAnnoCol)
+		l$annoGroupsCol = NULL
+		l$annoGroupsRow = NULL
+		l$inputSaved = input
+		l$annoLevsTab = NULL
+		return(l)
 	})
   
   setAnnoGroups = reactive({
@@ -298,38 +226,16 @@ shinyServer(function(input, output, session) {
 	filterColumnsRows = reactive({
     data = setAnnoGroups()
     if(is.null(data)) return(NULL)
+    filteringRows = findRetainedAfterFiltering(data$annoRow, data$inputSaved, "Row", data$mat)
+    filteringCols = findRetainedAfterFiltering(data$annoCol, data$inputSaved, "Column", data$mat)
+    transpose = toBoolean(data$inputSaved$uploadMatrixTranspose)
     
-		wc = findRetainedAfterFiltering(data$annoCol, data$inputSaved, "Column", data$mat)
-		wr = findRetainedAfterFiltering(data$annoRow, data$inputSaved, "Row", data$mat)
-		if(length(wc) > 0){
-		  data$annoCol = data$annoCol[wc, , drop = FALSE]
-      if(length(wr) > 0){
-        data$annoRow = data$annoRow[wr, , drop = FALSE]
-        data$mat = data$mat[wr, wc, drop = FALSE]
-      } else {
-        data$annoRow = data$mat = NULL
-      }
-		} else {
-		  data$annoCol = data$mat = NULL
-		  if(length(wr) > 0){
-		    data$annoRow = data$annoRow[wr, , drop = FALSE]
-		  } else {
-		    data$annoRow = NULL
-		  }
-		}
+    data = filterData(data = data, filteringRows = filteringRows, filteringCols = filteringCols, transpose = transpose)
     
-    if(toBoolean(data$inputSaved$uploadMatrixTranspose)){
-      if(!is.null(data$mat)){
-        data$mat = t(data$mat)
-      }
-      
-      #switch annotations
+    if(transpose){
+      #switch annotation groups
       #avoid assigining NULL to list: it removes the element!
       #http://stackoverflow.com/questions/7944809/assigning-null-to-a-list-element-in-r
-      temp = data$annoCol
-      data['annoCol'] = list(data$annoRow)
-      data['annoRow'] = list(temp)
-      
       temp = data$annoGroupsCol
       data['annoGroupsCol'] = list(data$annoGroupsRow)
       data['annoGroupsRow'] = list(temp)
@@ -658,76 +564,67 @@ shinyServer(function(input, output, session) {
   
 	#heatmap
   getTransposed = reactive({
-    data = getProc()
-    inputSaved = data$inputSaved
-    matImputed = data$matImputed
-    matScaled = data$matScaled
+    proc = getProc()
     validate(
-      need(!is.null(matImputed), "No data found, please revisit 'Data import' or 'Data pre-processing' tab!")
+      need(!is.null(proc$matImputed), "No data found, please revisit 'Data import' or 'Data pre-processing' tab!")
     )
     validate(
-      need(nrow(matImputed) <= maxDimensionHeatmap, 
+      need(nrow(proc$matImputed) <= maxDimensionHeatmap, 
         str_c("Data matrices with more than ", maxDimensionHeatmap, 
         " rows are currently not supported, please revisit 'Data import' tab and change row filtering options or upload a smaller file!")),
-      need(ncol(matImputed) <= maxDimensionHeatmap, 
+      need(ncol(proc$matImputed) <= maxDimensionHeatmap, 
         str_c("Data matrices with more than ", maxDimensionHeatmap,
         " columns are currently not supported, please revisit 'Data import' tab and filter some columns or collapse columns with similar annotations on 'Data pre-processing' tab or upload a smaller file!"))
     )
-    if(toBoolean(inputSaved$hmShowImputed)){
-      matFinal = matImputed
-    } else {
-      matFinal = matScaled
-    }
-    annoCol = data$annoCol
-    annoRow = data$annoRow
-    cnr = colnames(annoRow)
+    
+    inputSaved = proc$inputSaved
+    cnr = colnames(proc$annoRow)
     if(all(cnr %in% interactivityAnnos)){
       cnr = NULL
     } else {
       cnr = cnr[!(cnr %in% interactivityAnnos)]
     }
     cnc = inputSaved$procAnno
-    mappingRow = data$mappingRow
-    mappingCol = data$mappingCol
-    if(toBoolean(inputSaved$hmTransposeHeatmap)){
-      if(!is.null(matImputed)){
-        matImputed = t(matImputed)
-        matScaled = t(matScaled)
-        matFinal = t(matFinal)
-      }
-      temp = annoCol
-      annoCol = annoRow
-      annoRow = temp
-      
+    
+    showImputed = toBoolean(inputSaved$hmShowImputed)
+    transpose = toBoolean(inputSaved$hmTransposeHeatmap)
+    
+    if(transpose){
       temp = cnc
       cnc = cnr
       cnr = temp
-      
-      temp = mappingCol
-      mappingCol = mappingRow
-      mappingRow = temp
     }
+    
+    trans = transposeMatrix(proc, showImputed = showImputed, transpose = transpose)
+    trans$inputSaved = inputSaved
     isolate({
-      updateHmOptions(session, matFinal, cnr, cnc)
+      updateHmOptions(session, trans$matFinal, cnr, cnc)
     })
-    list(matFinal = matFinal, matImputed = matImputed, annoCol = annoCol, 
-         annoRow = annoRow, inputSaved = inputSaved, 
-         mappingCol = mappingCol, mappingRow = mappingRow)
+    trans
   })
   
 	getClust = reactive({
-		data = getTransposed()
-		data$hcRows = calcOrdering(data$matImputed, data$inputSaved$hmClustDistRows, 
-      data$inputSaved$hmClustMethodRows, data$inputSaved$hmTreeOrderingRows)
-		data$hcCols = calcOrdering(t(data$matImputed), data$inputSaved$hmClustDistCols, 
-		  data$inputSaved$hmClustMethodCols, data$inputSaved$hmTreeOrderingCols)
+		trans = getTransposed()
+		clustDistRows = trans$inputSaved$hmClustDistRows
+		if(clustDistRows == noClust) clustDistRows = NA
+		clustMethodRows = trans$inputSaved$hmClustMethodRows
+		treeOrderingRows = trans$inputSaved$hmTreeOrderingRows
+		if(treeOrderingRows == "tightest cluster first") treeOrderingRows = NA
+		clustDistCols = trans$inputSaved$hmClustDistCols
+		if(clustDistCols == noClust) clustDistCols = NA
+		clustMethodCols = trans$inputSaved$hmClustMethodCols
+		treeOrderingCols = trans$inputSaved$hmTreeOrderingCols
+		if(treeOrderingCols == "tightest cluster first") treeOrderingCols = NA
+		
+		clust = clusterMatrix(trans, clustDistRows = clustDistRows, clustMethodRows = clustMethodRows, treeOrderingRows = treeOrderingRows, clustDistCols = clustDistCols, clustMethodCols = clustMethodCols, treeOrderingCols = treeOrderingCols)
+		
 		validate(
-		  need(is.na(data$hcRows) | (class(data$hcRows) == "hclust"), 
-           ifelse(class(data$hcRows) == "hclust", NA, str_c("In rows, ", data$hcRows))),
-		  need(is.na(data$hcCols) | (class(data$hcCols) == "hclust"), 
-		       ifelse(class(data$hcCols) == "hclust", NA, str_c("In columns, ", data$hcCols)))
+		  need(is.na(clust$hcRows) | (class(clust$hcRows) == "hclust") | (class(clust$hcRows) == "logical"), 
+           ifelse(class(clust$hcRows) == "hclust", NA, str_c("In rows, ", clust$hcRows))),
+		  need(is.na(clust$hcCols) | (class(clust$hcCols) == "hclust") | (class(clust$hcCols) == "logical"), 
+		       ifelse(class(clust$hcCols) == "hclust", NA, str_c("In columns, ", clust$hcCols)))
 		)
-		data
+		clust
 	})
 	
 	getHeatmap = reactive({
@@ -743,7 +640,7 @@ shinyServer(function(input, output, session) {
 		gh = getHeatmap()
 		if(!is.null(gh)){
       grid.newpage()
-      grid.draw(gh$ph$gtable)
+      grid.draw(gh$q$gtable)
 		}
     dev.off()
     list(src = outfile, contentType = 'image/png', width = gh$picw, height = gh$pich)
@@ -758,19 +655,19 @@ shinyServer(function(input, output, session) {
 	      outfile = tempfile(pattern = "Rplots_", fileext = '.pdf', tmpdir = sessPath)
         dev.new(file = outfile, width = gh$picwIn, height = gh$pichIn)
 	      grid.newpage()
-	      grid.draw(gh$ph$gtable)
+	      grid.draw(gh$q$gtable)
 	      grid.force() #suggested by Paul Murrell
 	      names = grid.ls(print = FALSE)$name
 	      
 	      titlesRows = getTooltipTitles(mapping = transp$mappingRow, names = rownames(transp$matFinal), rows = TRUE)
 	      titlesCols = getTooltipTitles(mapping = transp$mappingCol, names = colnames(transp$matFinal))
-	      if(!is.na(gh$ph$tree_row)){
-	        rnOrder = gh$ph$tree_row$order
+	      if(!is.na(gh$q$tree_row)){
+	        rnOrder = gh$q$tree_row$order
 	      } else {
 	        rnOrder = 1:nrow(transp$matFinal)
 	      }
-	      if(!is.na(gh$ph$tree_col)){
-	        cnOrder = gh$ph$tree_col$order
+	      if(!is.na(gh$q$tree_col)){
+	        cnOrder = gh$q$tree_col$order
 	      } else {
 	        cnOrder = 1:ncol(transp$matFinal)
 	      }
@@ -1032,7 +929,7 @@ shinyServer(function(input, output, session) {
 	      print(get(fun)()$q)
 	    } else if(type == "Heatmap"){
 	      pdf(file, width = input$hmPlotWidth / 2.54, height = input$hmPlotRatio * input$hmPlotWidth / 2.54)
-	      gt = plotHeatmap(getClust())$ph$gtable
+	      gt = getHeatmap()$q$gtable
 	      grid.draw(gt)
 	    }
 	    dev.off()
@@ -1052,7 +949,7 @@ shinyServer(function(input, output, session) {
 	    } else if(type == "Heatmap"){
 	      postscript(file, horizontal = FALSE, onefile = FALSE, paper = "special", 
 	                 width = input$hmPlotWidth / 2.54, height = input$hmPlotRatio * input$hmPlotWidth / 2.54)
-	      gt = plotHeatmap(getClust())$ph$gtable
+	      gt = getHeatmap()$q$gtable
 	      grid.draw(gt)
 	    }
 	    dev.off()
@@ -1070,7 +967,7 @@ shinyServer(function(input, output, session) {
 	      print(get(fun)()$q)
 	    } else if(type == "Heatmap"){
 	      svglite(file, width = input$hmPlotWidth / 2.54, height = input$hmPlotRatio * input$hmPlotWidth / 2.54)
-	      gt = plotHeatmap(getClust())$ph$gtable
+	      gt = getHeatmap()$q$gtable
 	      grid.draw(gt)
 	    }
 	    dev.off()

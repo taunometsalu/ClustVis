@@ -1,5 +1,5 @@
 #Author: Tauno Metsalu
-#Copyright: 2017 University of Tartu
+#Copyright: 2018 University of Tartu
 
 #source("/srv/shiny-server/global.R")
 
