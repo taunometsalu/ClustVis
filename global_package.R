@@ -641,7 +641,7 @@ annoLevels = function(anno, maxAnnoLevels){
 }
 
 #calculate colors for annotation legend
-calcAnnoLegendColors = function(x, annoLegendColors){
+calcAnnoLegendColors = function(x, legendColorScheme){
   cls = class(x)
   if(cls == "factor"){
     levs = levels(x)
@@ -653,7 +653,12 @@ calcAnnoLegendColors = function(x, annoLegendColors){
   n = length(levs)
   
   if(n <= 8){
-    cols = annoLegendColors[1:n]
+    if(legendColorScheme %in% c("Set1", "Pastel1")){
+      cols = brewer.pal(9, legendColorScheme)[-6] #without yellow
+    } else {
+      cols = brewer.pal(8, legendColorScheme)
+    }
+    cols = cols[1:n]
   } else {
     cols = rainbow(n)
   }
@@ -661,7 +666,7 @@ calcAnnoLegendColors = function(x, annoLegendColors){
   cols
 }
 
-createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, colorAnnoCol, annoLegendColors, plotWidth, plotRatio, colorRangeMin, colorRangeMax, colorScheme, revScheme, cellBorder, fontSizeGeneral, showNumbers, fontSizeNumbers, precisionNumbers, showRownames, fontSizeRownames, showColnames, fontSizeColnames, showAnnoTitlesRow, showAnnoTitlesCol, maxAnnoLevels){
+createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, colorAnnoCol, legendColorScheme, plotWidth, plotRatio, colorRangeMin, colorRangeMax, matrixColorScheme, revScheme, cellBorder, fontSizeGeneral, showNumbers, fontSizeNumbers, precisionNumbers, showRownames, fontSizeRownames, showColnames, fontSizeColnames, showAnnoTitlesRow, showAnnoTitlesCol, maxAnnoLevels){
   matFinal = clust$matFinal
   annoCol = clust$annoCol
   annoRow = clust$annoRow
@@ -719,7 +724,7 @@ createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, 
   pich = pichIn * 2.54 * dotsPerCm
   
   #color scheme:
-  colScheme = brewer.pal(n = 7, name = colorScheme)
+  colScheme = brewer.pal(n = 7, name = matrixColorScheme)
   if(revScheme) colScheme = rev(colScheme)
   nbrColors = 100
   colVec = colorRampPalette(colScheme)(nbrColors)
@@ -740,7 +745,7 @@ createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, 
   annoCol2 = rev(annoCol2)
   
   #calculate annotation colors, default ones are sometimes strange
-  legendColors = c(lapply(annoRow2, calcAnnoLegendColors, annoLegendColors), lapply(annoCol2, calcAnnoLegendColors, annoLegendColors))
+  legendColors = c(lapply(annoRow2, calcAnnoLegendColors, legendColorScheme), lapply(annoCol2, calcAnnoLegendColors, legendColorScheme))
   legendColors = legendColors[sapply(legendColors, length) > 0] #default colors if not factor or character
   
   q = pheatmap(matFinal,
@@ -761,10 +766,10 @@ createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, 
   list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, message = message)
 }
 
-generateHeatmap = function(proc, showImputed = TRUE, transpose = FALSE, clustDistRows = "correlation", clustMethodRows = "average", treeOrderingRows = NA, nbrClustersRows = 1, clustDistCols = "correlation", clustMethodCols = "average", treeOrderingCols = NA, nbrClustersCols = 1, colorAnnoRow = NA, colorAnnoCol = NA, annoLegendColors = brewer.pal(9, "Set1")[-6], plotWidth = 25, plotRatio = 0.8, colorRangeMin = NA, colorRangeMax = NA, colorScheme = "RdBu", revScheme = TRUE, cellBorder = "grey60", fontSizeGeneral = 10, showNumbers = FALSE, fontSizeNumbers = 12, precisionNumbers = 2, showRownames = TRUE, fontSizeRownames = NA, showColnames = TRUE, fontSizeColnames = NA, showAnnoTitlesRow = TRUE, showAnnoTitlesCol = TRUE, maxAnnoLevels = 30){
+generateHeatmap = function(proc, showImputed = TRUE, transpose = FALSE, clustDistRows = "correlation", clustMethodRows = "average", treeOrderingRows = NA, nbrClustersRows = 1, clustDistCols = "correlation", clustMethodCols = "average", treeOrderingCols = NA, nbrClustersCols = 1, colorAnnoRow = NA, colorAnnoCol = NA, legendColorScheme = "Set1", plotWidth = 25, plotRatio = 0.8, colorRangeMin = NA, colorRangeMax = NA, matrixColorScheme = "RdBu", revScheme = TRUE, cellBorder = "grey60", fontSizeGeneral = 10, showNumbers = FALSE, fontSizeNumbers = 12, precisionNumbers = 2, showRownames = TRUE, fontSizeRownames = NA, showColnames = TRUE, fontSizeColnames = NA, showAnnoTitlesRow = TRUE, showAnnoTitlesCol = TRUE, maxAnnoLevels = 30){
   trans = transposeMatrix(proc, showImputed = showImputed, transpose = transpose)
   clust = clusterMatrix(trans, clustDistRows = clustDistRows, clustMethodRows = clustMethodRows, treeOrderingRows = treeOrderingRows, clustDistCols = clustDistCols, clustMethodCols = clustMethodCols, treeOrderingCols = treeOrderingCols)
-  createHeatmap(clust = clust, nbrClustersRows = nbrClustersRows, nbrClustersCols = nbrClustersCols, colorAnnoRow = colorAnnoRow, colorAnnoCol = colorAnnoCol, annoLegendColors = annoLegendColors, plotWidth = plotWidth, plotRatio = plotRatio, colorRangeMin = colorRangeMin, colorRangeMax = colorRangeMax, colorScheme = colorScheme, revScheme = revScheme, cellBorder = cellBorder, fontSizeGeneral = fontSizeGeneral, showNumbers = showNumbers, fontSizeNumbers = fontSizeNumbers, precisionNumbers = precisionNumbers, showRownames = showRownames, fontSizeRownames = fontSizeRownames, showColnames = showColnames, fontSizeColnames = fontSizeColnames, showAnnoTitlesRow = showAnnoTitlesRow, showAnnoTitlesCol = showAnnoTitlesCol, maxAnnoLevels = maxAnnoLevels)
+  createHeatmap(clust = clust, nbrClustersRows = nbrClustersRows, nbrClustersCols = nbrClustersCols, colorAnnoRow = colorAnnoRow, colorAnnoCol = colorAnnoCol, legendColorScheme = legendColorScheme, plotWidth = plotWidth, plotRatio = plotRatio, colorRangeMin = colorRangeMin, colorRangeMax = colorRangeMax, matrixColorScheme = matrixColorScheme, revScheme = revScheme, cellBorder = cellBorder, fontSizeGeneral = fontSizeGeneral, showNumbers = showNumbers, fontSizeNumbers = fontSizeNumbers, precisionNumbers = precisionNumbers, showRownames = showRownames, fontSizeRownames = fontSizeRownames, showColnames = showColnames, fontSizeColnames = fontSizeColnames, showAnnoTitlesRow = showAnnoTitlesRow, showAnnoTitlesCol = showAnnoTitlesCol, maxAnnoLevels = maxAnnoLevels)
 }
 
 saveHeatmap = function(hm, file){

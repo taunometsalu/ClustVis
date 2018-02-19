@@ -50,10 +50,9 @@ colortab = brewer.pal.info #all RColorBrewer colors
 colSequential = rownames(colortab)[colortab$category == "seq"]
 colDiverging = rownames(colortab)[colortab$category == "div"]
 colQualitative = rownames(colortab)[colortab$category == "qual"]
-colQualitative = c(colQualitative, "Grayscale")
-annoLegendColors = brewer.pal(9, "Set1")[-6] #without yellow
 schemeListHM = c(colSequential, colDiverging)
 names(schemeListHM) = str_c(c(rep("Sequential", length(colSequential)), rep("Diverging", length(colDiverging))), ": ", schemeListHM)
+schemeListPCA = c(colQualitative, "Grayscale")
 procMeth = c("svdImpute", "nipals", "bpca", "ppca")
 names(procMeth) = c("SVD with imputation", "Nipals PCA", "Bayesian PCA", "Probabilistic PCA")
 procMeth = procMeth[procMeth != "bpca"] #gives too many errors
@@ -661,11 +660,12 @@ plotHeatmap = function(data){
 	nbrClustersCols = inputSaved$hmCutreeClustersCols
 	colorAnnoRow = inputSaved$hmAnnoRow
 	colorAnnoCol = inputSaved$hmAnnoCol
+	legendColorScheme = inputSaved$hmLegendScheme
 	plotWidth = inputSaved$hmPlotWidth
 	plotRatio = inputSaved$hmPlotRatio
 	colorRangeMin = inputSaved$hmColorRangeMin
 	colorRangeMax = inputSaved$hmColorRangeMax
-	colorScheme = inputSaved$hmColorScheme
+	matrixColorScheme = inputSaved$hmColorScheme
 	revScheme = toBoolean(inputSaved$hmRevScheme)
 	cellBorder = inputSaved$hmCellBorder
 	if(cellBorder == "no border") cellBorder = NA
@@ -680,7 +680,7 @@ plotHeatmap = function(data){
 	showAnnoTitlesRow = toBoolean(inputSaved$hmShowAnnoTitlesRow)
 	showAnnoTitlesCol = toBoolean(inputSaved$hmShowAnnoTitlesCol)
   
-	createHeatmap(clust = data, nbrClustersRows = nbrClustersRows, nbrClustersCols = nbrClustersCols, colorAnnoRow = colorAnnoRow, colorAnnoCol = colorAnnoCol, annoLegendColors = annoLegendColors, plotWidth = plotWidth, plotRatio = plotRatio, colorRangeMin = colorRangeMin, colorRangeMax = colorRangeMax, colorScheme = colorScheme, revScheme = revScheme, cellBorder = cellBorder, fontSizeGeneral = fontSizeGeneral, showNumbers = showNumbers, fontSizeNumbers = fontSizeNumbers, precisionNumbers = precisionNumbers, showRownames = showRownames, fontSizeRownames = fontSizeRownames, showColnames = showColnames, fontSizeColnames = fontSizeColnames, showAnnoTitlesRow = showAnnoTitlesRow, showAnnoTitlesCol = showAnnoTitlesCol, maxAnnoLevels = maxAnnoLevels)
+	createHeatmap(clust = data, nbrClustersRows = nbrClustersRows, nbrClustersCols = nbrClustersCols, colorAnnoRow = colorAnnoRow, colorAnnoCol = colorAnnoCol, legendColorScheme = legendColorScheme, plotWidth = plotWidth, plotRatio = plotRatio, colorRangeMin = colorRangeMin, colorRangeMax = colorRangeMax, matrixColorScheme = matrixColorScheme, revScheme = revScheme, cellBorder = cellBorder, fontSizeGeneral = fontSizeGeneral, showNumbers = showNumbers, fontSizeNumbers = fontSizeNumbers, precisionNumbers = precisionNumbers, showRownames = showRownames, fontSizeRownames = fontSizeRownames, showColnames = showColnames, fontSizeColnames = fontSizeColnames, showAnnoTitlesRow = showAnnoTitlesRow, showAnnoTitlesCol = showAnnoTitlesCol, maxAnnoLevels = maxAnnoLevels)
 }
 
 #table below the plot when clicked on heatmap row or column or cell or PCA point

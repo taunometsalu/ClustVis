@@ -50,7 +50,7 @@ shinyServer(function(input, output, session) {
 				updates = list(
 					updateSelectInput = c("procMethodAgg", "procScaling", "procMethod", 
 						"pcaPcx", "pcaPcy", "pcaColor", "pcaShape", "pcaEllipseLineType", "pcaLegendPosition", 
-						"hmClustDistRows", "hmClustDistCols", "hmClustMethodRows", "hmClustMethodCols", 
+						"hmLegendScheme", "hmClustDistRows", "hmClustDistCols", "hmClustMethodRows", "hmClustMethodCols", 
 						"hmTreeOrderingRows", "hmTreeOrderingCols", "hmColorScheme", "hmCellBorder"),
 					updateCheckboxGroupInput = c(
             "procAnno", "procCentering", "pcaSwitchDir", "pcaAnnoColor", "pcaAnnoShape", 
