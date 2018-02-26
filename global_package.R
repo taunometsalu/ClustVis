@@ -1,5 +1,3 @@
-options(stringsAsFactors = FALSE)
-
 suppressPackageStartupMessages({
   library(stringr)
   library(plyr)
@@ -79,13 +77,13 @@ readFile = function(file, sep, nbrRowAnnos, nbrColAnnos){
   if(nbrColAnnos == 0 | nbrRowAnnos == ncol(data)){
     annoCol = NULL
   } else {
-    annoCol = as.data.frame(t(data[1:nbrColAnnos, (nbrRowAnnos + 1):ncol(data), drop = FALSE]))
+    annoCol = as.data.frame(t(data[1:nbrColAnnos, (nbrRowAnnos + 1):ncol(data), drop = FALSE]), stringsAsFactors = FALSE)
     annoCol[is.na(annoCol)] = "NA" #to make filtering and heatmap annotations work correctly
   }
   if(nbrRowAnnos == 0 | nbrColAnnos == nrow(data)){
     annoRow = NULL
   } else {
-    annoRow = as.data.frame(data[(nbrColAnnos + 1):nrow(data), 1:nbrRowAnnos, drop = FALSE])
+    annoRow = as.data.frame(data[(nbrColAnnos + 1):nrow(data), 1:nbrRowAnnos, drop = FALSE], stringsAsFactors = FALSE)
     annoRow[is.na(annoRow)] = "NA"
   }
   if(nbrColAnnos == nrow(data) | nbrRowAnnos == ncol(data)){
@@ -166,7 +164,7 @@ collapseSimilarAnnoMat = function(anno, mat, fun = median){
   for(i in 1:length(anno2$gr)){
     w = which(anno$gr == anno2$gr[i])
     res = cbind(res, fun2(mat[, w, drop = FALSE]))
-    mapping = rbind(mapping, data.frame(orig = w, agg = i, origName = colnames(mat)[w], aggName = anno2$gr[i]))
+    mapping = rbind(mapping, data.frame(orig = w, agg = i, origName = colnames(mat)[w], aggName = anno2$gr[i]), stringsAsFactors = FALSE)
   }
   colnames(res) = anno2$gr
   rownames(anno2) = anno2$gr
@@ -177,7 +175,7 @@ collapseSimilarAnnoMat = function(anno, mat, fun = median){
 
 #trivial mapping
 defaultMapping = function(mat){
-  data.frame(orig = 1:ncol(mat), agg = 1:ncol(mat), origName = colnames(mat), aggName = colnames(mat))
+  data.frame(orig = 1:ncol(mat), agg = 1:ncol(mat), origName = colnames(mat), aggName = colnames(mat), stringsAsFactors = FALSE)
 }
 
 findNAs = function(mat, dim){
@@ -371,10 +369,10 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
     }
   }
   
-  x2 = data.frame(pcx = matPca[, pcs[1]], pcy = matPca[, pcs[2]], sample = rownames(matPca))
+  x2 = data.frame(pcx = matPca[, pcs[1]], pcy = matPca[, pcs[2]], sample = rownames(matPca), stringsAsFactors = FALSE)
   if(!is.null(annoCol)){
     m = match(rownames(matPca), rownames(annoCol))
-    x2 = data.frame(x2, annoCol[m, , drop = FALSE], check.names = FALSE)
+    x2 = data.frame(x2, annoCol[m, , drop = FALSE], check.names = FALSE, stringsAsFactors = FALSE)
   } else {
     colorAnno = shapeAnno = NULL
   }

@@ -78,7 +78,7 @@ shinyServer(function(input, output, session) {
 					updateDateRangeInput = c()
 				)
 				lens = sapply(updates, length)
-				updates2 = data.frame(fun = rep(names(updates), lens), id = unlist(updates))
+				updates2 = data.frame(fun = rep(names(updates), lens), id = unlist(updates), stringsAsFactors = FALSE)
 				
         isolate({
           updateProcOptions(session, annoCol, annoGroupsCol)
@@ -135,11 +135,11 @@ shinyServer(function(input, output, session) {
 				rownames(mat) = rn
 				colnames(mat) = cn
 				if(length(w) > 0){
-					anno = data.frame(sapply(w, function(x) var.get.nc(nc, x - 1)))
+					anno = data.frame(sapply(w, function(x) var.get.nc(nc, x - 1)), stringsAsFactors = FALSE)
 					rownames(anno) = cn
 					colnames(anno) = varsAnno
 					annoLevs = sapply(anno, function(x) length(unique(x)))
-					annoLevsTab = as.data.frame(lapply(annoLevs, identity))
+					annoLevsTab = as.data.frame(lapply(annoLevs, identity), stringsAsFactors = FALSE)
 					w2 = which((annoLevs >= input$uploadMinAnnoLevels) & 
                        (annoLevs <= input$uploadMaxAnnoLevels))
 					if(length(w2) > 0){
