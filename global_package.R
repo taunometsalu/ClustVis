@@ -1,21 +1,11 @@
-suppressPackageStartupMessages({
-  library(stringr)
-  library(plyr)
-  library(pcaMethods)
-  library(FactoMineR)
-  library(ggplot2)
-  library(RColorBrewer)
-  library(grid)
-  library(pheatmap)
-})
-
+#read file and extract annotations
 readFile = function(file, sep, nbrRowAnnos, nbrColAnnos){
   #guess delimiter if needed:
   sepList = c(",", "\t", ";")
   if(is.na(sep)){
     rl = readLines(file, warn = FALSE)
     rl = rl[rl != ""] #last line can be empty
-    sepNbrsMin = sapply(sepList, function(x) min(str_count(rl, x))) #minimal number of separators on a line
+    sepNbrsMin = sapply(sepList, function(x) min(stringr::str_count(rl, x))) #minimal number of separators on a line
     sep = sepList[which.max(sepNbrsMin)]
     f2 = textConnection(rl) #create new connection
   } else {
@@ -26,7 +16,7 @@ readFile = function(file, sep, nbrRowAnnos, nbrColAnnos){
     read.table(f, sep = sep, header = TRUE, fill = TRUE, colClasses = "character", 
                check.names = FALSE, comment.char = "")
   }
-  safeRead = failwith(NULL, readText, quiet = TRUE)
+  safeRead = plyr::failwith(NULL, readText, quiet = TRUE)
   message = NULL
   data = safeRead(f2, sep)
   if(!is.null(data)){
@@ -34,13 +24,13 @@ readFile = function(file, sep, nbrRowAnnos, nbrColAnnos){
     if(any(duplicated(rn))){
       #make row names unique
       rn = make.unique(rn)
-      message = str_c(message, "Row names were converted because they were not unique!")
+      message = paste0(message, "Row names were converted because they were not unique!")
     }
     cn = colnames(data)[-1]
     if(any(duplicated(cn))){
       #make column names unique
       cn = make.unique(cn)
-      message = str_c(message, "Column names were converted because they were not unique!", sep = "\n")
+      message = paste0(message, "Column names were converted because they were not unique!", sep = "\n")
     }
     data = data[, -1, drop = FALSE]
     rownames(data) = rn
@@ -96,6 +86,7 @@ readFile = function(file, sep, nbrRowAnnos, nbrColAnnos){
   list(annoCol = annoCol, annoRow = annoRow, mat = mat, sep = sep, message = message)
 }
 
+#filter data and transpose if needed
 filterData = function(data, filteringRows, filteringCols, transpose){
   if(is.null(data$mat)) return(data)
   if(is.null(filteringCols)){
@@ -137,6 +128,19 @@ filterData = function(data, filteringRows, filteringCols, transpose){
   data
 }
 
+#' Import data into ClustVis.
+#' 
+#' This function performs the steps shown on the 'Data import' tab of the online ClustVis.
+#' 
+#' @param file file name containing the input data.
+#' @param sep field separator between columns. If \code{NA} (default), the separator is detected automatically.
+#' @param nbrRowAnnos number of row annotations placed as the first columns in the input file. If \code{nbrRowAnnos} or \code{nbrColAnnos} is \code{NA} (default), number of row annotations is detected automatically.
+#' @param nbrColAnnos number of column annotations placed as the first rows in the input file. If \code{nbrRowAnnos} or \code{nbrColAnnos} is \code{NA} (default), number of column annotations is detected automatically.
+#' @param filteringRows logical vector showing which rows to keep. Should have the same length as the number of rows in the data matrix. \code{NULL} (default) keeps all rows.
+#' @param filteringCols logical vector showing which columns to keep. Should have the same length as the number of columns in the data matrix. \code{NULL} (default) keeps all columns.
+#' @param transpose whether to transpose the data matrix.
+#' @return a structure to be used as input for the function \code{processData}
+#' @export
 importData = function(file, sep = NA, nbrRowAnnos = NA, nbrColAnnos = NA, filteringRows = NULL, filteringCols = NULL, transpose = FALSE){
   data = readFile(file = file, sep = sep, nbrRowAnnos = nbrRowAnnos, nbrColAnnos = nbrColAnnos)
   filterData(data, filteringRows = filteringRows, filteringCols = filteringCols, transpose = transpose)
@@ -152,11 +156,11 @@ calcSize = function(mat){
   size
 }
 
-
+#collapse similar annotations
 collapseSimilarAnnoMat = function(anno, mat, fun = median){
   #http://stackoverflow.com/questions/8139301/aggregate-rows-in-a-large-matrix-by-rowname
   fun2 = function(x) apply(x, 1, fun, na.rm = TRUE)
-  anno$gr = apply(anno, 1, function(x) str_c(x, collapse = ", "))
+  anno$gr = apply(anno, 1, function(x) paste0(x, collapse = ", "))
   anno2 = unique(anno)
   rownames(anno2) = NULL
   res = NULL
@@ -178,6 +182,7 @@ defaultMapping = function(mat){
   data.frame(orig = 1:ncol(mat), agg = 1:ncol(mat), origName = colnames(mat), aggName = colnames(mat), stringsAsFactors = FALSE)
 }
 
+#find rows or columns with missing values
 findNAs = function(mat, dim){
   nas = apply(mat, dim, function(x) sum(is.na(x)))
   names(nas) = dimnames(mat)[[dim]]
@@ -193,8 +198,8 @@ findNAs = function(mat, dim){
 calcNaTable = function(mat, na, naRem){
   if(length(na) > 0){
     perc = na / ncol(mat) * 100
-    perc2 = str_c(formatC(perc, format = "f", digits = 1), "%")
-    rem = mapvalues(names(na) %in% naRem, c(TRUE, FALSE), c("yes", "no"), warn_missing = FALSE)
+    perc2 = paste0(formatC(perc, format = "f", digits = 1), "%")
+    rem = plyr::mapvalues(names(na) %in% naRem, c(TRUE, FALSE), c("yes", "no"), warn_missing = FALSE)
     tab = rbind(Count = na, Percentage = perc2, Removed = rem)
   } else {
     tab = NULL
@@ -202,6 +207,7 @@ calcNaTable = function(mat, na, naRem){
   tab
 }
 
+#find rows or columns with zero standard deviation
 findSD0 = function(mat, dim){
   sds = apply(mat, dim, function(x) sd(x, na.rm = TRUE))
   names = dimnames(mat)[[dim]][which(is.na(sds) | (sds == 0))]
@@ -224,6 +230,22 @@ recalcFactorLevels = function(anno){
   anno
 }
 
+#' Pre-process ClustVis data.
+#' 
+#' This function performs the steps shown on the 'Data pre-processing' tab of the online ClustVis.
+#' 
+#' @param data data structure returned by the \code{importData} function.
+#' @param annoColKeep column names to keep or \code{NULL} (default) to keep all columns.
+#' @param annoColMethodAgg column aggregation method (function name like \code{"mean"} or \code{"median"} as a string) or \code{NA} (default) to keep original columns without aggregation.
+#' @param maxNaRows maximum proportion of missing values allowed in rows. Rows having a higher proportion of missing values are removed from further analysis.
+#' @param maxNaCols maximum proportion of missing values allowed in columns. Columns having a higher proportion of missing values are removed from further analysis.
+#' @param remConstCols whether to remove constant columns.
+#' @param rowCentering whether to center rows to have zero mean.
+#' @param rowScaling which method to use for scaling the rows. One from \code{"uv"} (default), \code{"pareto"}, \code{"vector"} or \code{"none"} for keeping the rows without scaling.
+#' @param pcaMethod which method to use for calculating principal components. One from \code{"svdImpute"} (default), \code{"nipals"} or \code{"ppca"}.
+#' @param maxComponents maximum number of PCA components to calculate.
+#' @return a structure to be used as input for the functions \code{generatePCA} and \code{generateHeatmap}.
+#' @export
 processData = function(data, annoColKeep = NULL, annoColMethodAgg = NA, maxNaRows = 0.9999, maxNaCols = 0.9999, remConstCols = FALSE, rowCentering = TRUE, rowScaling = "uv", pcaMethod = "svdImpute", maxComponents = 100){
   annoRow = data$annoRow
   if(is.null(annoColKeep) && !is.null(data$annoCol)){
@@ -307,14 +329,14 @@ processData = function(data, annoColKeep = NULL, annoColMethodAgg = NA, maxNaRow
   sizeTable = t(sizeTable)
   
   if(!is.null(mat)){
-    prep = prep(t(mat), scale = rowScaling, center = rowCentering)
-    messages = capture.output(pca <- pca(prep, method = pcaMethod, nPcs = min(c(dim(mat), maxComponents)))) #avoid message printout
-    matPca = scores(pca)
-    pcaLoadings = loadings(pca)
-    matImputed = t(completeObs(pca))
+    prep = pcaMethods::prep(t(mat), scale = rowScaling, center = rowCentering)
+    messages = capture.output(pca <- pcaMethods::pca(prep, method = pcaMethod, nPcs = min(c(dim(mat), maxComponents)))) #avoid message printout
+    matPca = pcaMethods::scores(pca)
+    pcaLoadings = pcaMethods::loadings(pca)
+    matImputed = t(pcaMethods::completeObs(pca))
     matScaled = t(prep)
     varTable = rbind(Individual = pca@R2, Cumulative = pca@R2cum)
-    colnames(varTable) = str_c("PC", 1:ncol(varTable))
+    colnames(varTable) = paste0("PC", 1:ncol(varTable))
     annoCol = recalcFactorLevels(annoCol)
     annoRow = recalcFactorLevels(annoRow)
     l = list(annoCol = annoCol, annoRow = annoRow, 
@@ -334,6 +356,7 @@ processData = function(data, annoColKeep = NULL, annoColMethodAgg = NA, maxNaRow
   l
 }
 
+#calculate ellipse coordinates
 calcEllipses = function(x2, conf){
   tab = table(x2$groupingColor)
   grs = names(tab[tab > 2])
@@ -341,7 +364,7 @@ calcEllipses = function(x2, conf){
   if(nrow(x3) > 0){
     x3$groupingColor = factor(x3$groupingColor) #coord.ellipse needs that
     #bary - confidence interval for the mean (TRUE) or prediction interval for the new value (FALSE)
-    coord = coord.ellipse(x3, bary = FALSE, npoint = 200, level.conf = conf)$res
+    coord = FactoMineR::coord.ellipse(x3, bary = FALSE, npoint = 200, level.conf = conf)$res
     coord$sample = "sampleX" #dummy to make ggplot work
   } else {
     coord = NULL
@@ -349,7 +372,37 @@ calcEllipses = function(x2, conf){
   coord
 }
 
-generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = FALSE, colorAnno = 1, colorScheme = "Set1", showEllipses = TRUE, ellipseConf = 0.95, ellipseLineWidth = 1, ellipseLineType = "solid", shapeAnno = 2, shapeScheme = "various", plotWidth = 20, plotRatio = 0.8, pointSize = 5, legendPosition = "right", fontSize = 20, axisLabelPrefix = "PC", showVariance = TRUE, showSampleIds = FALSE, maxColorLevels = 8, maxShapeLevels = 62, characterList = c(LETTERS, letters, 0:9), shapeList = c(16, 15, 17:18, 1, 0, 2:14)){
+#' Generate ClustVis PCA plot.
+#' 
+#' This function performs the steps shown on the 'PCA' tab of the online ClustVis.
+#' 
+#' @param proc structure returned by the \code{processData} function.
+#' @param pcx principal component shown on the x-axis.
+#' @param pcy principal component shown on the y-axis.
+#' @param switchDirX whether to switch the direction of x-axis (reverse the sign).
+#' @param switchDirY whether to switch the direction of y-axis (reverse the sign).
+#' @param colorAnno the annotation(s) used for coloring and ellipses, as column numbers (if numeric) or column names (if character). If length is greater than one, unique combinations of the levels are found. If \code{NULL}, all points are black.
+#' @param colorScheme coloring scheme used for the annotation groups. One from \code{"Accent"}, \code{"Dark2"}, \code{"Paired"}, \code{"Pastel1"}, \code{"Pastel2"}, \code{"Set1"} (default), \code{"Set2"}, \code{"Set3"} or \code{"Grayscale"}.
+#' @param showEllipses whether to show prediction ellipses around groups.
+#' @param ellipseConf confidence level used for calculating prediction ellipses.
+#' @param ellipseLineWidth line width for the ellipses.
+#' @param ellipseLineType line type for the ellipses. One from \code{"solid"} (default), \code{"dashed"}, \code{"dotted"}, \code{"dotdash"}, \code{"longdash"} or \code{"twodash"}.
+#' @param shapeAnno the annotation(s) used for shape, as column numbers (if numeric) or column names (if character). If length is greater than one, unique combinations of the levels are found. If \code{NULL}, all points are round.
+#' @param shapeScheme shape scheme used for annotation groups. One from \code{"various"} (default), \code{"letters"}, or a list of point symbol codes or characters.
+#' @param plotWidth plot width in cm.
+#' @param plotRatio ratio of height and width of the plotting area.
+#' @param pointSize point size.
+#' @param legendPosition legend position relative to the plot.
+#' @param fontSize font size.
+#' @param axisLabelPrefix prefix shown for the axis labels.
+#' @param showVariance whether to show percentage of variance explained by the component in the axis label.
+#' @param showSampleIds whether to show sample IDs for the points shown on the plot.
+#' @param maxColorLevels maximum number of levels allowed for colors.
+#' @param maxShapeLevels maximum number of levels allowed for shapes.
+#' @return a structure to be used as input for the function \code{savePCA}.
+#' @import ggplot2
+#' @export
+generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = FALSE, colorAnno = 1, colorScheme = "Set1", showEllipses = TRUE, ellipseConf = 0.95, ellipseLineWidth = 1, ellipseLineType = "solid", shapeAnno = 2, shapeScheme = "various", plotWidth = 20, plotRatio = 0.8, pointSize = 5, legendPosition = "right", fontSize = 20, axisLabelPrefix = "PC", showVariance = TRUE, showSampleIds = FALSE, maxColorLevels = 8, maxShapeLevels = 62){
   pcs = c(pcx, pcy)
   switchDirs = c(switchDirX, switchDirY)
   annoCol = proc$annoCol
@@ -381,21 +434,21 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
   if(!is.null(shapeAnno) && !(shapeAnno %in% colnames(x2))) return(list(NULL, 0, 0, message = NULL))
   grSep = ", "
   if(!is.null(colorAnno)){
-    x2$groupingColor = apply(x2[colorAnno], 1, function(x) str_c(x, collapse = grSep))
+    x2$groupingColor = apply(x2[colorAnno], 1, function(x) paste0(x, collapse = grSep))
     if((length(colorAnno) == 1) & (class(x2[, colorAnno]) == "factor")){
       x2$groupingColor = factor(x2$groupingColor, levels = levels(x2[, colorAnno]))
     }
-    groupingTitleColor = str_c(colorAnno, collapse = grSep)
+    groupingTitleColor = paste0(colorAnno, collapse = grSep)
   } else {
     x2$groupingColor = ""
     groupingTitleColor = ""
   }
   if(!is.null(shapeAnno)){
-    x2$groupingShape = apply(x2[shapeAnno], 1, function(x) str_c(x, collapse = grSep))
+    x2$groupingShape = apply(x2[shapeAnno], 1, function(x) paste0(x, collapse = grSep))
     if((length(shapeAnno) == 1) & (class(x2[, shapeAnno]) == "factor")){
       x2$groupingShape = factor(x2$groupingShape, levels = levels(x2[, shapeAnno]))
     }
-    groupingTitleShape = str_c(shapeAnno, collapse = grSep)
+    groupingTitleShape = paste0(shapeAnno, collapse = grSep)
   } else {
     x2$groupingShape = ""
     groupingTitleShape = ""
@@ -403,9 +456,9 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
   nColor = length(unique(x2$groupingColor)) #number of different groups for color
   nShape = length(unique(x2$groupingShape)) #number of different groups for shape
   if(nColor > maxColorLevels){
-    return(list(NULL, 0, 0, message = str_c("You have ", nColor, " different groups for color, only up to ", maxColorLevels, " are allowed. Please change color grouping!")))
+    return(list(NULL, 0, 0, message = paste0("You have ", nColor, " different groups for color, only up to ", maxColorLevels, " are allowed. Please change color grouping!")))
   } else if(nShape > maxShapeLevels){
-    return(list(NULL, 0, 0, message = str_c("You have ", nShape, " different groups for shape, only up to ", maxShapeLevels, " are allowed. Please change shape grouping!")))
+    return(list(NULL, 0, 0, message = paste0("You have ", nShape, " different groups for shape, only up to ", maxShapeLevels, " are allowed. Please change shape grouping!")))
   }
   ellCoord = calcEllipses(x2, ellipseConf)
   ellipses = (showEllipses & (length(colorAnno) > 0) & (!is.null(ellCoord)))
@@ -447,11 +500,11 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
   xrange = xrange + add
   yrange = yrange + add
   
-  xl = str_c(axisLabelPrefix, pcs[1])
-  yl = str_c(axisLabelPrefix, pcs[2])
+  xl = paste0(axisLabelPrefix, pcs[1])
+  yl = paste0(axisLabelPrefix, pcs[2])
   if(showVariance){
-    xl = str_c(xl, " (", round(varTable[1, pcs[1]] * 100, 1), "%)")
-    yl = str_c(yl, " (", round(varTable[1, pcs[2]] * 100, 1), "%)")
+    xl = paste0(xl, " (", round(varTable[1, pcs[1]] * 100, 1), "%)")
+    yl = paste0(yl, " (", round(varTable[1, pcs[2]] * 100, 1), "%)")
   }
   
   #http://stackoverflow.com/questions/11393123/controlling-ggplot2-legend-display-order
@@ -462,19 +515,25 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
     theme(legend.position = legendPosition, plot.margin = unit(margins, "bigpts"))
   
   #set shape
-  if(shapeScheme == "letters"){
-    q = q + scale_shape_manual(values = characterList[1:nShape])
+  shapeListLetters = c(LETTERS, letters, 0:9)
+  shapeListVarious = c(16, 15, 17:18, 1, 0, 2:14)
+  if(length(shapeScheme) > 1 || (length(shapeScheme == 1) && !(shapeScheme %in% c("letters", "various")))){
+    if(length(shapeScheme) < nShape) stop("shapeScheme is too short!")
+    shapeValues = shapeScheme[1:nShape]
+  } else if(shapeScheme == "letters"){
+    shapeValues = shapeListLetters[1:nShape]
   } else if(shapeScheme == "various"){
-    q = q + scale_shape_manual(values = shapeList[1:nShape])
+    shapeValues = shapeListVarious[1:nShape]
   } else {
-    q = q + scale_shape_manual(values = rep(16, nShape))
+    shapeValues = rep(16, nShape)
   }
+  q = q + scale_shape_manual(values = shapeValues)
   
   #set color
   if(nColor <= 8 & length(colorAnno) > 0 & colorScheme != "Black"){
     if(colorScheme == "Grayscale"){
       #http://stackoverflow.com/questions/20125253/ggplot-2-barplot-with-a-diverging-colour-palette
-      q = q + scale_colour_manual(values = rev(brewer.pal(nColor, "Greys")))
+      q = q + scale_colour_manual(values = rev(RColorBrewer::brewer.pal(nColor, "Greys")))
     } else {
       q = q + scale_colour_brewer(palette = colorScheme)
     }
@@ -512,10 +571,21 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
        message = NULL, showEllipses = ellipses)
 }
 
-savePCA = function(pca, file){
-  pdf(file, width = pca$picwIn, height = pca$pichIn)
-  print(pca$q)
-  dev.off()
+#' Save ClustVis PCA plot.
+#' 
+#' This function saves the PCA output.
+#' 
+#' @param pca structure returned by the \code{generatePCA} function.
+#' @param file relative or absolute path of the output file, or \code{NA} (default) for current output device.
+#' @export
+savePCA = function(pca, file = NA){
+  if(is.na(file)){
+    print(pca$q)
+  } else {
+    pdf(file, width = pca$picwIn, height = pca$pichIn)
+    print(pca$q)
+    dev.off()
+  }
 }
 
 transposeMatrix = function(proc, showImputed, transpose){
@@ -652,9 +722,9 @@ calcAnnoLegendColors = function(x, legendColorScheme){
   
   if(n <= 8){
     if(legendColorScheme %in% c("Set1", "Pastel1")){
-      cols = brewer.pal(9, legendColorScheme)[-6] #without yellow
+      cols = RColorBrewer::brewer.pal(9, legendColorScheme)[-6] #without yellow
     } else {
-      cols = brewer.pal(8, legendColorScheme)
+      cols = RColorBrewer::brewer.pal(8, legendColorScheme)
     }
     cols = cols[1:n]
   } else {
@@ -709,7 +779,7 @@ createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, 
   annoCol2 = alc$anno
   removed = c(alr$removed, alc$removed)
   if(!is.null(removed)){
-    message = str_c("The following annotations have more than ", maxAnnoLevels, " levels and were removed from the plot: '", str_c(removed, collapse = "', '"), "'.")
+    message = paste0("The following annotations have more than ", maxAnnoLevels, " levels and were removed from the plot: '", paste0(removed, collapse = "', '"), "'.")
   } else {
     message = NULL
   }
@@ -722,7 +792,7 @@ createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, 
   pich = pichIn * 2.54 * dotsPerCm
   
   #color scheme:
-  colScheme = brewer.pal(n = 7, name = matrixColorScheme)
+  colScheme = RColorBrewer::brewer.pal(n = 7, name = matrixColorScheme)
   if(revScheme) colScheme = rev(colScheme)
   nbrColors = 100
   colVec = colorRampPalette(colScheme)(nbrColors)
@@ -746,33 +816,82 @@ createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, 
   legendColors = c(lapply(annoRow2, calcAnnoLegendColors, legendColorScheme), lapply(annoCol2, calcAnnoLegendColors, legendColorScheme))
   legendColors = legendColors[sapply(legendColors, length) > 0] #default colors if not factor or character
   
-  q = pheatmap(matFinal,
-               annotation_row = annoRow2, annotation_col = annoCol2, annotation_colors = legendColors,
-               cluster_rows = hcRows, cluster_cols = hcCols,
-               cutree_rows = nbrClustersRows, cutree_cols = nbrClustersCols,
-               color = colVec, breaks = colBreaks,
-               border_color = cellBorder,
-               show_rownames = showRownames, fontsize_row = fontSizeRownames,
-               show_colnames = showColnames, fontsize_col = fontSizeColnames,
-               annotation_names_row = showAnnoTitlesRow, annotation_names_col = showAnnoTitlesCol,
-               display_numbers = showNumbers, number_format = str_c("%.", precisionNumbers, "f"),
-               fontsize = fontSizeGeneral, fontsize_number = fontSizeNumbers,
-               width = picwIn, height = pichIn, silent = TRUE
+  q = pheatmap::pheatmap(matFinal,
+                         annotation_row = annoRow2, annotation_col = annoCol2, annotation_colors = legendColors,
+                         cluster_rows = hcRows, cluster_cols = hcCols,
+                         cutree_rows = nbrClustersRows, cutree_cols = nbrClustersCols,
+                         color = colVec, breaks = colBreaks,
+                         border_color = cellBorder,
+                         show_rownames = showRownames, fontsize_row = fontSizeRownames,
+                         show_colnames = showColnames, fontsize_col = fontSizeColnames,
+                         annotation_names_row = showAnnoTitlesRow, annotation_names_col = showAnnoTitlesCol,
+                         display_numbers = showNumbers, number_format = paste0("%.", precisionNumbers, "f"),
+                         fontsize = fontSizeGeneral, fontsize_number = fontSizeNumbers,
+                         width = picwIn, height = pichIn, silent = TRUE
   )
   graphics.off()
   
   list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, message = message)
 }
 
+#' Generate ClustVis heatmap.
+#' 
+#' This function performs the steps shown on the 'Heatmap' tab of the online ClustVis.
+#' 
+#' @param proc structure returned by the \code{processData} function.
+#' @param showImputed whether to show imputed values (default) or missing values on the heatmap.
+#' @param transpose whether to transpose the heatmap before plotting or not (default).
+#' @param clustDistRows clustering distance measure used for rows. One from \code{"correlation"} (default), \code{"euclidean"}, \code{"maximum"}, \code{"manhattan"}, \code{"canberra"}, \code{"binary"}, \code{"minkowski"} or \code{NA} for no clustering.
+#' @param clustMethodRows linkage criterion used for rows. One from \code{"single"}, \code{"complete"}, \code{"average"}  (default), \code{"mcquitty"}, \code{"median"}, \code{"centroid"}, \code{"ward.D2"} or \code{"ward.D"}.
+#' @param treeOrderingRows how to order branches of the clustering tree of rows to make it visually more attractive. One from \code{"higher median value first"}, \code{"higher mean value first"}, \code{"lower median value first"}, \code{"lower mean value first"}, \code{"original"}, \code{"reverse original"}, or \code{NA} (default) to leave the ordering unchanged.
+#' @param nbrClustersRows number of clusters in rows separated by gaps.
+#' @param clustDistCols clustering distance measure used for columns. One from \code{"correlation"} (default), \code{"correlation"}, \code{"euclidean"}, \code{"maximum"}, \code{"manhattan"}, \code{"canberra"}, \code{"binary"}, \code{"minkowski"} or \code{NA} for no clustering.
+#' @param clustMethodCols linkage criterion used for columns. One from \code{"single"}, \code{"complete"}, \code{"average"}  (default), \code{"mcquitty"}, \code{"median"}, \code{"centroid"}, \code{"ward.D2"} or \code{"ward.D"}.
+#' @param treeOrderingCols how to order branches of the clustering tree of columns to make it visually more attractive. One from \code{"higher median value first"}, \code{"higher mean value first"}, \code{"lower median value first"}, \code{"lower mean value first"}, \code{"original"}, \code{"reverse original"}, or \code{NA} (default) to leave the ordering unchanged.
+#' @param nbrClustersCols number of clusters in columns separated by gaps.
+#' @param colorAnnoRow row annotations shown left from the heatmap, as a character vector. If \code{NA} (default), all annotations are shown.
+#' @param colorAnnoCol column annotations shown above the heatmap, as a character vector. If \code{NA} (default), all annotations are shown.
+#' @param legendColorScheme coloring scheme used for the annotations. One from \code{"Accent"}, \code{"Dark2"}, \code{"Paired"}, \code{"Pastel1"}, \code{"Pastel2"}, \code{"Set1"} (default), \code{"Set2"} or \code{"Set3"}.
+#' @param plotWidth width of the plot.
+#' @param plotRatio ratio of height and width of the image.
+#' @param colorRangeMin minimum of the color range or \code{NA} (default) to calculate it automatically.
+#' @param colorRangeMax maximum of the color range or \code{NA} (default) to calculate it automatically.
+#' @param matrixColorScheme coloring scheme used for the heatmap. One of the sequential or diverging color schemes from \code{"RColocBrewer"} package, see row names of \code{"RColorBrewer::brewer.pal.info"} for the list.
+#' @param revScheme whether to reverse the coloring scheme.
+#' @param cellBorder color of the cell border or \code{NA} to omit border.
+#' @param fontSizeGeneral general font size.
+#' @param showNumbers whether to show numbers in the cells.
+#' @param fontSizeNumbers font size of the numbers.
+#' @param precisionNumbers number of decimal places shown.
+#' @param showRownames whether to show row names.
+#' @param fontSizeRownames font size of the row names.
+#' @param showColnames whether to show column names.
+#' @param fontSizeColnames font size of the column names.
+#' @param showAnnoTitlesRow whether to show row annotation titles.
+#' @param showAnnoTitlesCol whether to show column annotation titles.
+#' @param maxAnnoLevels maximum number of annotation levels.
+#' @return a structure to be used as input for the function \code{saveHeatmap}.
+#' @export
 generateHeatmap = function(proc, showImputed = TRUE, transpose = FALSE, clustDistRows = "correlation", clustMethodRows = "average", treeOrderingRows = NA, nbrClustersRows = 1, clustDistCols = "correlation", clustMethodCols = "average", treeOrderingCols = NA, nbrClustersCols = 1, colorAnnoRow = NA, colorAnnoCol = NA, legendColorScheme = "Set1", plotWidth = 25, plotRatio = 0.8, colorRangeMin = NA, colorRangeMax = NA, matrixColorScheme = "RdBu", revScheme = TRUE, cellBorder = "grey60", fontSizeGeneral = 10, showNumbers = FALSE, fontSizeNumbers = 12, precisionNumbers = 2, showRownames = TRUE, fontSizeRownames = NA, showColnames = TRUE, fontSizeColnames = NA, showAnnoTitlesRow = TRUE, showAnnoTitlesCol = TRUE, maxAnnoLevels = 30){
   trans = transposeMatrix(proc, showImputed = showImputed, transpose = transpose)
   clust = clusterMatrix(trans, clustDistRows = clustDistRows, clustMethodRows = clustMethodRows, treeOrderingRows = treeOrderingRows, clustDistCols = clustDistCols, clustMethodCols = clustMethodCols, treeOrderingCols = treeOrderingCols)
   createHeatmap(clust = clust, nbrClustersRows = nbrClustersRows, nbrClustersCols = nbrClustersCols, colorAnnoRow = colorAnnoRow, colorAnnoCol = colorAnnoCol, legendColorScheme = legendColorScheme, plotWidth = plotWidth, plotRatio = plotRatio, colorRangeMin = colorRangeMin, colorRangeMax = colorRangeMax, matrixColorScheme = matrixColorScheme, revScheme = revScheme, cellBorder = cellBorder, fontSizeGeneral = fontSizeGeneral, showNumbers = showNumbers, fontSizeNumbers = fontSizeNumbers, precisionNumbers = precisionNumbers, showRownames = showRownames, fontSizeRownames = fontSizeRownames, showColnames = showColnames, fontSizeColnames = fontSizeColnames, showAnnoTitlesRow = showAnnoTitlesRow, showAnnoTitlesCol = showAnnoTitlesCol, maxAnnoLevels = maxAnnoLevels)
 }
 
-saveHeatmap = function(hm, file){
-  pdf(file, width = hm$picwIn, height = hm$pichIn)
-  grid.draw(hm$q$gtable)
-  dev.off()
+#' Save ClustVis heatmap plot.
+#' 
+#' This function saves the heatmap output.
+#' 
+#' @param hm structure returned by the \code{generateHeatmap} function.
+#' @param file relative or absolute path of the output file, or \code{NA} (default) for current output device.
+#' @export
+saveHeatmap = function(hm, file = NA){
+  if(is.na(file)){
+    grid::grid.draw(hm$q$gtable)
+  } else {
+    pdf(file, width = hm$picwIn, height = hm$pichIn)
+    grid::grid.draw(hm$q$gtable)
+    dev.off()
+  }
 }
 
