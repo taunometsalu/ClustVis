@@ -8,7 +8,7 @@ sessPath = "/srv/settings/" #where to save settings
 sessPathExternal = "/srv/settings_external/" #where to save settings for externally saved datasets
 pbPathPrefix = "/srv/data_pb/" #path of MEM files
 
-source("/srv/shiny-server/global_package.R")
+source("/srv/shiny-server/Rpackage/R/clustvis.R")
 
 .libPaths(libPath)
 suppressPackageStartupMessages({

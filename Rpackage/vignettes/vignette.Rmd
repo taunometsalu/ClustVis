@@ -1,0 +1,48 @@
+---
+title: "ClustVis examples"
+author: "Tauno Metsalu"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{ClustVis examples}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  error = TRUE
+)
+```
+
+This vignette shows some minimal examples how to generate plots using R package clustvis.
+
+## PCA example
+
+```{r, fig.show = 'hold', fig.height = 4, fig.width = 7}
+library(clustvis)
+file = "https://raw.githubusercontent.com/taunometsalu/ClustVis/master/datasets/nki.csv"
+d = importData(file)
+proc = processData(d)
+pca = generatePCA(proc)
+savePCA(pca, file = NA)
+```
+
+## Heatmap example
+
+```{r}
+library(clustvis)
+file = "https://raw.githubusercontent.com/taunometsalu/ClustVis/master/datasets/nki.csv"
+d = importData(file)
+proc = processData(d)
+hm = generateHeatmap(proc)
+saveHeatmap(hm, file = NA)
+```
+
+```{r, echo = FALSE, fig.show = 'hold', fig.height = 8.8, fig.width = 7}
+# not working for some reason in the end of previous code chunk
+saveHeatmap(hm, file = NA)
+```
+

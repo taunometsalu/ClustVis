@@ -1,0 +1,23 @@
+Package: clustvis
+Title: R package for visualizing clustering of multivariate data using PCA and heatmap
+Version: 0.0.0.9000
+Authors@R: person("Tauno", "Metsalu", email = "taunometsalu@gmail.com", role = c("aut", "cre"))
+Description: This package allows to generate similar plots like online ClustVis web tool
+Depends: R (>= 3.3.2)
+License: GNU GPLv3
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 6.0.1.9000
+Imports:
+    stringr,
+    plyr,
+    pcaMethods,
+    FactoMineR,
+    ggplot2,
+    RColorBrewer,
+    grid,
+    pheatmap
+Suggests:
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
