@@ -662,11 +662,14 @@ fluidPage(
 					#http://support.minitab.com/en-us/minitab/17/topic-library/modeling-statistics/multivariate/item-and-cluster-analyses/linkage-methods/
 					HTML("Available linkage methods:<ul><li>single linkage - using two closest objects from two clusters to be merged</li><li>complete linkage - using two farthest objects</li><li>average - average distance of all possible pairs</li><li>McQuitty - average distance of the two clusters (to be merged) to the cluster of interest</li><li>median - median distance of all possible pairs</li><li>centroid - distance between cluster means</li><li>Ward linkage - using sum of squared differences from points to centroids as the distance</li></ul>"),
 					h5("Separate editions", id = "editions"),
-					p("There is a", a("separate ClustVis edition", href = "http://biit.cs.ut.ee/clustvis_large/", target = "_blank"), "available which has higher limits for size of the uploaded data. Also, a", a("Docker image", href = "https://hub.docker.com/r/taunometsalu/clustvis/", target = "_blank"), "is available in Docker Hub which makes it easier to run ClustVis locally. See", a("GitHub page", href = "https://github.com/taunometsalu/ClustVis", target = "_blank"), "for more information about the local installation."),
+					p("There is a", a("separate ClustVis edition", href = "http://biit.cs.ut.ee/clustvis_large/", target = "_blank"), "available which has higher limits for size of the uploaded data."),
+					p("Also, a", a("Docker image", href = "https://hub.docker.com/r/taunometsalu/clustvis/", target = "_blank"), "is available in Docker Hub which makes it easier to run ClustVis locally. See", a("GitHub page", href = "https://github.com/taunometsalu/ClustVis", target = "_blank"), "for more information about the local installation."),
+					p("If you want to automate ClustVis plot generation, the best way is to use ClustVis R package. See", a("GitHub page", href = "https://github.com/taunometsalu/ClustVis", target = "_blank"), "for more information."),
           footer
 				),
 				tabPanel("News",
 					h5("Version history:"),
+					p("21st May 2018 - ClustVis plots can now we generated using an R package, see ", a("GitHub page", href = "https://github.com/taunometsalu/ClustVis", target = "_blank"), " for instructions."),
 					p("19th February 2018 - major code refactoring to separate main functions; fix a bug about setting PCA plot axis limits (thank you, Abby Benninghoff, for letting us know about it!); values outside color range on the heatmap are now appearing with the same color as the color range min or max (thank you, Abby Benninghoff, for the idea!); option to change heatmap legend colors added."),
 					p("11th December 2017 - some bug fixes and optimizations."),
 					p("23rd October 2017 - updated Shiny server version and several packages. Decreased minimum heatmap plot width."),

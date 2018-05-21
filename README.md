@@ -3,6 +3,8 @@ Souce code of [ClustVis](http://biit.cs.ut.ee/clustvis/) web tool.
 
 The code is distributed under GNU GPLv3. If you are interested in other licensing options, please contact the author.
 
+## Docker image
+
 To run ClustVis locally, you can use a snapshot of ClustVis [Docker image](https://hub.docker.com/r/taunometsalu/clustvis/) from Docker Hub. You can also try to build the image from the Dockerfile but ClustVis code may not work correctly with the newest versions of the R packages if the changes have broken backward compatibility.
 
 To use the Docker image, you need to have [Docker](https://www.docker.com/) installed. Then use the following code:
@@ -22,3 +24,15 @@ sudo docker run -d \
 ```
 
 ClustVis should then be running on ```<myURL>:<myPort>```.
+
+## R package
+To start using ClustVis R package, you can look at the examples in the vignette that comes with the package:
+
+```
+source("http://bioconductor.org/biocLite.R")
+biocLite("pcaMethods")
+library(devtools)
+install_github("taunometsalu/pheatmap")
+install_github("taunometsalu/clustvis/Rpackage", build_vignettes = TRUE)
+vignette("vignette", "clustvis")
+```
