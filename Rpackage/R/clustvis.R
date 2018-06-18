@@ -579,6 +579,9 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
 #' @param file relative or absolute path of the output file, or \code{NA} (default) for current output device.
 #' @export
 savePCA = function(pca, file = NA){
+  if(!is.null(pca$message)){
+    warning(pca$message)
+  }
   if(is.na(file)){
     print(pca$q)
   } else {
@@ -886,6 +889,9 @@ generateHeatmap = function(proc, showImputed = TRUE, transpose = FALSE, clustDis
 #' @param file relative or absolute path of the output file, or \code{NA} (default) for current output device.
 #' @export
 saveHeatmap = function(hm, file = NA){
+  if(!is.null(hm$message)){
+    warning(hm$message)
+  }
   if(is.na(file)){
     grid::grid.draw(hm$q$gtable)
   } else {
