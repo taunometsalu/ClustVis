@@ -387,7 +387,7 @@ dataProcess = function(data){
 	  annoColKeep = c(annoColKeep, intersect(colnames(data$annoCol), interactivityAnnos))
 	}
 	
-	l = processData(data, annoColKeep = annoColKeep, annoColMethodAgg = annoColMethodAgg, maxNaRows = maxNaRows, maxNaCols = maxNaCols, remConstCols = remConstCols, rowCentering = rowCentering, rowScaling = rowScaling, pcaMethod = pcaMethod, maxComponents = 100)
+	l = processData(data, annoColKeep = annoColKeep, annoColMethodAgg = annoColMethodAgg, maxNaRows = maxNaRows, maxNaCols = maxNaCols, remConstCols = remConstCols, rowCentering = rowCentering, rowScaling = rowScaling, pcaMethod = pcaMethod, maxComponents = maxComponents)
 	l$inputSaved = inputSaved
 	l
 }
@@ -650,7 +650,7 @@ plotPCA = function(data){
     showSampleIds = toBoolean(inputSaved$pcaShowSampleIds)
   }
   
-  generatePCA(proc = data, pcx = pcx, pcy = pcy, switchDirX = switchDirX, switchDirY = switchDirY, colorAnno = colorAnno, colorScheme = colorScheme, showEllipses = showEllipses, ellipseConf = ellipseConf, ellipseLineWidth = ellipseLineWidth, ellipseLineType = ellipseLineType, shapeAnno = shapeAnno, shapeScheme = shapeScheme, plotWidth = plotWidth, plotRatio = plotRatio, pointSize = pointSize, legendPosition = legendPosition, fontSize = fontSize, axisLabelPrefix = axisLabelPrefix, showVariance = showVariance, showSampleIds = showSampleIds)
+  generatePCA(proc = data, pcx = pcx, pcy = pcy, switchDirX = switchDirX, switchDirY = switchDirY, colorAnno = colorAnno, colorScheme = colorScheme, showEllipses = showEllipses, ellipseConf = ellipseConf, ellipseLineWidth = ellipseLineWidth, ellipseLineType = ellipseLineType, shapeAnno = shapeAnno, shapeScheme = shapeScheme, plotWidth = plotWidth, plotRatio = plotRatio, pointSize = pointSize, legendPosition = legendPosition, fontSize = fontSize, axisLabelPrefix = axisLabelPrefix, showVariance = showVariance, showSampleIds = showSampleIds, maxColorLevels = maxColorLevels, maxShapeLevels = maxShapeLevels)
 }
 
 plotHeatmap = function(data){
