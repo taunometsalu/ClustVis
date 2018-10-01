@@ -173,6 +173,7 @@ fluidPage(
 			),
 			conditionalPanel(condition = "input.tabs1 == 'Data pre-processing'",
 				h4("Pre-processing options"),
+				selectInput("procTransformation", "Transformation:", choices = c("no transformation", "ln(x)", "ln(x + 1)"), selected = "no transformation", selectize = useSelectize),
 				conditionalPanel(condition = str_c("input.procAnno != '", fakeAnno, "'"),
 				  checkboxGroupInput("procAnnoGroups", "Column annotation groups to keep:", choices = fakeAnno, selected = fakeAnno),
 				  checkboxGroupInput("procAnno", "Column annotations to keep:", choices = fakeAnno, selected = fakeAnno),
@@ -374,6 +375,7 @@ fluidPage(
 			bsTooltip("uploadNbrClusters", "Number of clusters after appying k-means clustering.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("uploadClusterId", "Which cluster to visualize more closely. The previous option should be run first to identify a cluster of interest.", tooltipPlace, options = tooltipOptions),
 			
+			bsTooltip("procTransformation", "Whether to apply logarithmic transformation; recommended if data range covers multiple magnitudes. You may consider using ln(x) if smallest value in your data is 1, and ln(x + 1) if smallest value is 0.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("procAnnoGroups", "You can select or deselect column annotations in batch by using groups.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("procAnno", "Which column annotations to keep for further analysis, especially important if collapsing similar annotations.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("procMethodAgg", "Whether to collapse columns with similar annotations before further analysis and if so, which function to use.", tooltipPlace, options = tooltipOptions),
@@ -669,6 +671,7 @@ fluidPage(
 				),
 				tabPanel("News",
 					h5("Version history:"),
+					p("1st October 2018 - added option to apply logarithmic transformation to the original data."),
 					p("21st May 2018 - ClustVis plots can now we generated using an R package, see ", a("GitHub page", href = "https://github.com/taunometsalu/ClustVis", target = "_blank"), " for instructions."),
 					p("19th February 2018 - major code refactoring to separate main functions; fix a bug about setting PCA plot axis limits (thank you, Abby Benninghoff, for letting us know about it!); values outside color range on the heatmap are now appearing with the same color as the color range min or max (thank you, Abby Benninghoff, for the idea!); option to change heatmap legend colors added."),
 					p("11th December 2017 - some bug fixes and optimizations."),

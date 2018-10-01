@@ -235,6 +235,7 @@ recalcFactorLevels = function(anno){
 #' This function performs the steps shown on the 'Data pre-processing' tab of the online ClustVis.
 #' 
 #' @param data data structure returned by the \code{importData} function.
+#' @param transformation \code{"ln(x)"} or \code{"ln(x + 1)"} to apply logarithmic tranformation, or \code{NA} (default) to use original values.
 #' @param annoColKeep column names to keep or \code{NULL} (default) to keep all columns.
 #' @param annoColMethodAgg column aggregation method (function name like \code{"mean"} or \code{"median"} as a string) or \code{NA} (default) to keep original columns without aggregation.
 #' @param maxNaRows maximum proportion of missing values allowed in rows. Rows having a higher proportion of missing values are removed from further analysis.
@@ -246,21 +247,30 @@ recalcFactorLevels = function(anno){
 #' @param maxComponents maximum number of PCA components to calculate.
 #' @return a structure to be used as input for the functions \code{generatePCA} and \code{generateHeatmap}.
 #' @export
-processData = function(data, annoColKeep = NULL, annoColMethodAgg = NA, maxNaRows = 0.9999, maxNaCols = 0.9999, remConstCols = FALSE, rowCentering = TRUE, rowScaling = "uv", pcaMethod = "svdImpute", maxComponents = 100){
+processData = function(data, transformation = NA, annoColKeep = NULL, annoColMethodAgg = NA, maxNaRows = 0.9999, maxNaCols = 0.9999, remConstCols = FALSE, rowCentering = TRUE, rowScaling = "uv", pcaMethod = "svdImpute", maxComponents = 100){
+  mat = data$mat
+  sizeTable = calcSize(mat)
+  if(!is.na(transformation)){
+    if(transformation == "ln(x)"){
+      mat = log(pmax(mat, 1))
+    } else if(transformation == "ln(x + 1)"){
+      mat = log(pmax(mat + 1, 1))
+    } else {
+      stop("This transformation is not supported!")
+    }
+  }
   annoRow = data$annoRow
   if(is.null(annoColKeep) && !is.null(data$annoCol)){
     annoColKeep = colnames(data$annoCol)
   }
-  sizeTable = calcSize(data$mat)
   if(!is.na(annoColMethodAgg)){
     #aggregate columns
     annoFiltered = data$annoCol[, annoColKeep, drop = FALSE]
-    coll = collapseSimilarAnnoMat(annoFiltered, data$mat, get(annoColMethodAgg))
+    coll = collapseSimilarAnnoMat(annoFiltered, mat, get(annoColMethodAgg))
     annoCol = coll$anno
     mat = coll$mat
     mappingCol = coll$mapping
   } else {
-    mat = data$mat
     if(!is.null(data$annoCol) && length(annoColKeep) > 0 && all(annoColKeep %in% colnames(data$annoCol))){
       annoCol = data$annoCol[, annoColKeep, drop = FALSE]
     } else {

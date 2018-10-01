@@ -368,6 +368,11 @@ dataProcess = function(data){
 	set.seed(124987234)
 	inputSaved = data$inputSaved
 	
+	if(inputSaved$procTransformation == "no transformation"){
+	  transformation = NA
+	} else {
+	  transformation = inputSaved$procTransformation
+	}
 	annoColKeep = inputSaved$procAnno
 	if(inputSaved$procMethodAgg == "no collapse"){
 	  annoColMethodAgg = NA
@@ -387,7 +392,7 @@ dataProcess = function(data){
 	  annoColKeep = c(annoColKeep, intersect(colnames(data$annoCol), interactivityAnnos))
 	}
 	
-	l = processData(data, annoColKeep = annoColKeep, annoColMethodAgg = annoColMethodAgg, maxNaRows = maxNaRows, maxNaCols = maxNaCols, remConstCols = remConstCols, rowCentering = rowCentering, rowScaling = rowScaling, pcaMethod = pcaMethod, maxComponents = maxComponents)
+	l = processData(data, transformation = transformation, annoColKeep = annoColKeep, annoColMethodAgg = annoColMethodAgg, maxNaRows = maxNaRows, maxNaCols = maxNaCols, remConstCols = remConstCols, rowCentering = rowCentering, rowScaling = rowScaling, pcaMethod = pcaMethod, maxComponents = maxComponents)
 	l$inputSaved = inputSaved
 	l
 }

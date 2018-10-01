@@ -48,7 +48,7 @@ shinyServer(function(input, output, session) {
 				
 				#hardcoded manually - found no better way ...
 				updates = list(
-					updateSelectInput = c("procMethodAgg", "procScaling", "procMethod", 
+					updateSelectInput = c("procTransformation", "procMethodAgg", "procScaling", "procMethod", 
 						"pcaPcx", "pcaPcy", "pcaColor", "pcaShape", "pcaEllipseLineType", "pcaLegendPosition", 
 						"hmLegendScheme", "hmClustDistRows", "hmClustDistCols", "hmClustMethodRows", "hmClustMethodCols", 
 						"hmTreeOrderingRows", "hmTreeOrderingCols", "hmColorScheme", "hmCellBorder"),
@@ -1135,6 +1135,9 @@ shinyServer(function(input, output, session) {
 	  data = getProc()
     if(!is.null(data$matPca)){
       leg = c()
+      if(data$inputSaved$procTransformation != "no transformation"){
+        leg = append(leg, c("Original values are ", data$inputSaved$procTransformation, "-transformed. "))
+      }
       if(data$inputSaved$procMethodAgg != "no collapse"){
         leg = append(leg, c("Columns with similar annotations are collapsed by taking ", 
                             data$inputSaved$procMethodAgg, " inside each group. "))
@@ -1161,6 +1164,9 @@ shinyServer(function(input, output, session) {
 	  data = getProc()
     if(!is.null(data$matImputed) && all(dim(data$matImputed) <= maxDimensionHeatmap)){
       leg = c()
+      if(data$inputSaved$procTransformation != "no transformation"){
+        leg = append(leg, c("Original values are ", data$inputSaved$procTransformation, "-transformed. "))
+      }
       if(data$inputSaved$procMethodAgg != "no collapse"){
         leg = append(leg, c(changeIfTransposed("Columns", data$inputSaved), " with similar annotations are collapsed by taking ", data$inputSaved$procMethodAgg, " inside each group. "))
       }
