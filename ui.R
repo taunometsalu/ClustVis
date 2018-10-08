@@ -121,7 +121,7 @@ fluidPage(
 				  numericInput("uploadMaxAnnoLevels", "Maximum number of levels for annotations:", value = 8, min = 1)
 				),
 				
-				conditionalPanel(condition = "input.uploadDataInput == '1' || input.uploadDataInput == '2' || input.uploadDataInput == '3'",
+				conditionalPanel(condition = "input.uploadDataInput == '2' || input.uploadDataInput == '3'",
 					checkboxGroupInput("uploadGuessSep", NULL, c("detect delimiter" = TRUE), TRUE),
 					conditionalPanel(condition = "input.uploadGuessSep == ''",
 						radioButtons("uploadFileSep", "Delimiter:", list("Comma" = 1, "Tab" = 2, "Semicolon" = 3)),
@@ -132,7 +132,10 @@ fluidPage(
 					conditionalPanel(condition = "input.uploadGuessAnno == ''",
 						numericInput("uploadNbrColAnnos", "Number of column annotations:", value = -1, min = -1, step = 1),
 						numericInput("uploadNbrRowAnnos", "Number of row annotations:", value = -1, min = -1, step = 1)
-					)
+					),
+					
+					selectInput("uploadQuotes", "Quotes:", choices = list("single or double" = "\"'", "single" = "'", "double" = "\"", "no quotes" = ""), selectize = useSelectize),
+					textInput("uploadNaString", "Missing values:", "NA")
 				),
         
 				conditionalPanel(condition = "input.uploadDataInput == '5' || input.uploadDataInput == '6'",
@@ -364,6 +367,8 @@ fluidPage(
 			bsTooltip("uploadDataInput", "Which input to use: example dataset, upload a file, copy-paste from file, import from MEM (collection of public datasets from ArrayExpress), use saved settings or use a custom pre-saved dataset.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("uploadGuessSep", "Whether delimiter (separator between the columns) is detected automatically or provided by the user.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("uploadGuessAnno", "Whether number of column and row annotations is detected automatically or provided by the user. Annotations should be placed as the first rows and columns in the file. See help tab for more information.", tooltipPlace, options = tooltipOptions),
+			bsTooltip("uploadQuotes", "Which quotes are used around character values in the input data. You may need to change this setting if your data values naturally contain any quotes.", tooltipPlace, options = tooltipOptions),
+			bsTooltip("uploadNaString", "Which string is representing a missing value in the input data.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("uploadOrganism", "Organism of the microarray platform.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("uploadMinAnnoTracks", "You can filter out less informative datasets, e.g. those that have no annotations.", tooltipPlace, options = tooltipOptions),
 			bsTooltip("uploadMinAnnoLevels", "You can filter out less informative annotations, e.g. those that are constant.", tooltipPlace, options = tooltipOptions),
@@ -671,6 +676,7 @@ fluidPage(
 				),
 				tabPanel("News",
 					h5("Version history:"),
+					p("8th October 2018 - added option to change quote and missing value type in the input data."),
 					p("1st October 2018 - added option to apply logarithmic transformation to the original data."),
 					p("21st May 2018 - ClustVis plots can now we generated using an R package, see ", a("GitHub page", href = "https://github.com/taunometsalu/ClustVis", target = "_blank"), " for instructions."),
 					p("19th February 2018 - major code refactoring to separate main functions; fix a bug about setting PCA plot axis limits (thank you, Abby Benninghoff, for letting us know about it!); values outside color range on the heatmap are now appearing with the same color as the color range min or max (thank you, Abby Benninghoff, for the idea!); option to change heatmap legend colors added."),

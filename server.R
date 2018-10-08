@@ -187,7 +187,10 @@ shinyServer(function(input, output, session) {
 		  nAnnoRow = input$uploadNbrRowAnnos
 		}
 		
-		l = readFile(file = f, sep = sep, nbrRowAnnos = nAnnoRow, nbrColAnnos = nAnnoCol)
+		quotes = input$uploadQuotes
+		naString = input$uploadNaString
+		
+		l = readFile(file = f, sep = sep, nbrRowAnnos = nAnnoRow, nbrColAnnos = nAnnoCol, quotes = quotes, naString = naString)
 		l$annoGroupsCol = NULL
 		l$annoGroupsRow = NULL
 		l$inputSaved = input

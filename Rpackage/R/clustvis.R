@@ -1,5 +1,5 @@
 #read file and extract annotations
-readFile = function(file, sep, nbrRowAnnos, nbrColAnnos){
+readFile = function(file, sep, nbrRowAnnos, nbrColAnnos, quotes, naString){
   #guess delimiter if needed:
   sepList = c(",", "\t", ";")
   if(is.na(sep)){
@@ -14,7 +14,7 @@ readFile = function(file, sep, nbrRowAnnos, nbrColAnnos){
   
   readText = function(f, sep){
     read.table(f, sep = sep, header = TRUE, fill = TRUE, colClasses = "character", 
-               check.names = FALSE, comment.char = "")
+               check.names = FALSE, comment.char = "", quote = quotes, na.strings = naString)
   }
   safeRead = plyr::failwith(NULL, readText, quiet = TRUE)
   message = NULL
@@ -136,13 +136,15 @@ filterData = function(data, filteringRows, filteringCols, transpose){
 #' @param sep field separator between columns. If \code{NA} (default), the separator is detected automatically.
 #' @param nbrRowAnnos number of row annotations placed as the first columns in the input file. If \code{nbrRowAnnos} or \code{nbrColAnnos} is \code{NA} (default), number of row annotations is detected automatically.
 #' @param nbrColAnnos number of column annotations placed as the first rows in the input file. If \code{nbrRowAnnos} or \code{nbrColAnnos} is \code{NA} (default), number of column annotations is detected automatically.
+#' @param quotes quoting characters. See \code{quote} parameter from \code{read.table} function for more details.
+#' @param naString string for representing a missing value. See \code{na.srings} parameter from \code{read.table} function for more details.
 #' @param filteringRows logical vector showing which rows to keep. Should have the same length as the number of rows in the data matrix. \code{NULL} (default) keeps all rows.
 #' @param filteringCols logical vector showing which columns to keep. Should have the same length as the number of columns in the data matrix. \code{NULL} (default) keeps all columns.
 #' @param transpose whether to transpose the data matrix.
 #' @return a structure to be used as input for the function \code{processData}
 #' @export
-importData = function(file, sep = NA, nbrRowAnnos = NA, nbrColAnnos = NA, filteringRows = NULL, filteringCols = NULL, transpose = FALSE){
-  data = readFile(file = file, sep = sep, nbrRowAnnos = nbrRowAnnos, nbrColAnnos = nbrColAnnos)
+importData = function(file, sep = NA, nbrRowAnnos = NA, nbrColAnnos = NA, quotes = "\"'", naString = "NA", filteringRows = NULL, filteringCols = NULL, transpose = FALSE){
+  data = readFile(file = file, sep = sep, nbrRowAnnos = nbrRowAnnos, nbrColAnnos = nbrColAnnos, quotes = quotes, naString = naString)
   filterData(data, filteringRows = filteringRows, filteringCols = filteringCols, transpose = transpose)
 }
 
