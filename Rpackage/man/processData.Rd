@@ -4,13 +4,15 @@
 \alias{processData}
 \title{Pre-process ClustVis data.}
 \usage{
-processData(data, annoColKeep = NULL, annoColMethodAgg = NA,
-  maxNaRows = 0.9999, maxNaCols = 0.9999, remConstCols = FALSE,
-  rowCentering = TRUE, rowScaling = "uv", pcaMethod = "svdImpute",
-  maxComponents = 100)
+processData(data, transformation = NA, annoColKeep = NULL,
+  annoColMethodAgg = NA, maxNaRows = 0.9999, maxNaCols = 0.9999,
+  remConstCols = FALSE, rowCentering = TRUE, rowScaling = "uv",
+  pcaMethod = "svdImpute", maxComponents = 100)
 }
 \arguments{
 \item{data}{data structure returned by the \code{importData} function.}
+
+\item{transformation}{\code{"ln(x)"} or \code{"ln(x + 1)"} to apply logarithmic tranformation, or \code{NA} (default) to use original values.}
 
 \item{annoColKeep}{column names to keep or \code{NULL} (default) to keep all columns.}
 

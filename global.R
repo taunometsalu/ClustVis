@@ -643,6 +643,7 @@ plotPCA = function(data){
   shapeScheme = inputSaved$pcaShape
   plotWidth = inputSaved$pcaPlotWidth
   plotRatio = inputSaved$pcaPlotRatio
+  marginRatio = inputSaved$pcaMarginRatio
   pointSize = inputSaved$pcaPointSize
   legendPosition = inputSaved$pcaLegendPosition
   fontSize = inputSaved$pcaFontSize
@@ -655,7 +656,7 @@ plotPCA = function(data){
     showSampleIds = toBoolean(inputSaved$pcaShowSampleIds)
   }
   
-  generatePCA(proc = data, pcx = pcx, pcy = pcy, switchDirX = switchDirX, switchDirY = switchDirY, colorAnno = colorAnno, colorScheme = colorScheme, showEllipses = showEllipses, ellipseConf = ellipseConf, ellipseLineWidth = ellipseLineWidth, ellipseLineType = ellipseLineType, shapeAnno = shapeAnno, shapeScheme = shapeScheme, plotWidth = plotWidth, plotRatio = plotRatio, pointSize = pointSize, legendPosition = legendPosition, fontSize = fontSize, axisLabelPrefix = axisLabelPrefix, showVariance = showVariance, showSampleIds = showSampleIds, maxColorLevels = maxColorLevels, maxShapeLevels = maxShapeLevels)
+  generatePCA(proc = data, pcx = pcx, pcy = pcy, switchDirX = switchDirX, switchDirY = switchDirY, colorAnno = colorAnno, colorScheme = colorScheme, showEllipses = showEllipses, ellipseConf = ellipseConf, ellipseLineWidth = ellipseLineWidth, ellipseLineType = ellipseLineType, shapeAnno = shapeAnno, shapeScheme = shapeScheme, plotWidth = plotWidth, plotRatio = plotRatio, marginRatio = marginRatio, pointSize = pointSize, legendPosition = legendPosition, fontSize = fontSize, axisLabelPrefix = axisLabelPrefix, showVariance = showVariance, showSampleIds = showSampleIds, maxColorLevels = maxColorLevels, maxShapeLevels = maxShapeLevels)
 }
 
 plotHeatmap = function(data){

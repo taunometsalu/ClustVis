@@ -67,7 +67,7 @@ shinyServer(function(input, output, session) {
 					
 					updateCheckboxInput = c(),
 					updateNumericInput = c("procMaxNaPercRows", "procMaxNaPercCols", 
-            "pcaPlotRatio", "pcaEllipseConf", "hmPlotRatio", 
+            "pcaPlotRatio", "pcaMarginRatio", "pcaEllipseConf", "hmPlotRatio", 
             "hmColorRangeMax", "hmColorRangeMin", "hmCutreeClustersRows", "hmCutreeClustersCols"),
 					updateSliderInput = c("pcaPointSize", "pcaPlotWidth", "pcaFontSize", "pcaEllipseLineWidth", 
 					  "hmFontSizeGeneral", "hmFontSizeNumbers", "hmPrecisionNumbers", 

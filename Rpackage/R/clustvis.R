@@ -403,6 +403,7 @@ calcEllipses = function(x2, conf){
 #' @param shapeScheme shape scheme used for annotation groups. One from \code{"various"} (default), \code{"letters"}, or a list of point symbol codes or characters.
 #' @param plotWidth plot width in cm.
 #' @param plotRatio ratio of height and width of the plotting area.
+#' @param marginRatio how much white space is shown between data and plot borders, relative to y-axis data range. Margin is added after forcing the specified plot ratio.
 #' @param pointSize point size.
 #' @param legendPosition legend position relative to the plot.
 #' @param fontSize font size.
@@ -414,7 +415,7 @@ calcEllipses = function(x2, conf){
 #' @return a structure to be used as input for the function \code{savePCA}.
 #' @import ggplot2
 #' @export
-generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = FALSE, colorAnno = 1, colorScheme = "Set1", showEllipses = TRUE, ellipseConf = 0.95, ellipseLineWidth = 1, ellipseLineType = "solid", shapeAnno = 2, shapeScheme = "various", plotWidth = 20, plotRatio = 0.8, pointSize = 5, legendPosition = "right", fontSize = 20, axisLabelPrefix = "PC", showVariance = TRUE, showSampleIds = FALSE, maxColorLevels = 8, maxShapeLevels = 62){
+generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = FALSE, colorAnno = 1, colorScheme = "Set1", showEllipses = TRUE, ellipseConf = 0.95, ellipseLineWidth = 1, ellipseLineType = "solid", shapeAnno = 2, shapeScheme = "various", plotWidth = 20, plotRatio = 0.8, marginRatio = 0.05, pointSize = 5, legendPosition = "right", fontSize = 20, axisLabelPrefix = "PC", showVariance = TRUE, showSampleIds = FALSE, maxColorLevels = 8, maxShapeLevels = 62){
   pcs = c(pcx, pcy)
   switchDirs = c(switchDirX, switchDirY)
   annoCol = proc$annoCol
@@ -491,7 +492,6 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
     xr = x2$pcx
     yr = x2$pcy
   }
-  picAdd = 5 #how many percent white space from height (in units of data) to add
   xrange = range(xr, na.rm = TRUE)
   yrange = range(yr, na.rm = TRUE)
   xdiff = xrange[2] - xrange[1]
@@ -508,7 +508,7 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
     yAddition = (yDiffWanted - ydiff) / 2
     yrange = c(yrange[1] - yAddition, yrange[2] + yAddition)
   }
-  add = c(-1, 1) * picAdd / 100 * (yrange[2] - yrange[1])
+  add = c(-1, 1) * marginRatio * (yrange[2] - yrange[1])
   xrange = xrange + add
   yrange = yrange + add
   

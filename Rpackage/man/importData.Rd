@@ -5,7 +5,8 @@
 \title{Import data into ClustVis.}
 \usage{
 importData(file, sep = NA, nbrRowAnnos = NA, nbrColAnnos = NA,
-  filteringRows = NULL, filteringCols = NULL, transpose = FALSE)
+  quotes = "\\"'", naString = "NA", filteringRows = NULL,
+  filteringCols = NULL, transpose = FALSE)
 }
 \arguments{
 \item{file}{file name containing the input data.}
@@ -15,6 +16,10 @@ importData(file, sep = NA, nbrRowAnnos = NA, nbrColAnnos = NA,
 \item{nbrRowAnnos}{number of row annotations placed as the first columns in the input file. If \code{nbrRowAnnos} or \code{nbrColAnnos} is \code{NA} (default), number of row annotations is detected automatically.}
 
 \item{nbrColAnnos}{number of column annotations placed as the first rows in the input file. If \code{nbrRowAnnos} or \code{nbrColAnnos} is \code{NA} (default), number of column annotations is detected automatically.}
+
+\item{quotes}{quoting characters. See \code{quote} parameter from \code{read.table} function for more details.}
+
+\item{naString}{string for representing a missing value. See \code{na.srings} parameter from \code{read.table} function for more details.}
 
 \item{filteringRows}{logical vector showing which rows to keep. Should have the same length as the number of rows in the data matrix. \code{NULL} (default) keeps all rows.}
 

@@ -15,7 +15,7 @@ generateHeatmap(proc, showImputed = TRUE, transpose = FALSE,
   fontSizeGeneral = 10, showNumbers = FALSE, fontSizeNumbers = 12,
   precisionNumbers = 2, showRownames = TRUE, fontSizeRownames = NA,
   showColnames = TRUE, fontSizeColnames = NA, showAnnoTitlesRow = TRUE,
-  showAnnoTitlesCol = TRUE, maxAnnoLevels = 30)
+  showAnnoTitlesCol = TRUE, maxAnnoLevels = 50)
 }
 \arguments{
 \item{proc}{structure returned by the \code{processData} function.}

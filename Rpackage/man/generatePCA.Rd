@@ -8,7 +8,7 @@ generatePCA(proc, pcx = 1, pcy = 2, switchDirX = FALSE,
   switchDirY = FALSE, colorAnno = 1, colorScheme = "Set1",
   showEllipses = TRUE, ellipseConf = 0.95, ellipseLineWidth = 1,
   ellipseLineType = "solid", shapeAnno = 2, shapeScheme = "various",
-  plotWidth = 20, plotRatio = 0.8, pointSize = 5,
+  plotWidth = 20, plotRatio = 0.8, marginRatio = 0.05, pointSize = 5,
   legendPosition = "right", fontSize = 20, axisLabelPrefix = "PC",
   showVariance = TRUE, showSampleIds = FALSE, maxColorLevels = 8,
   maxShapeLevels = 62)
@@ -43,6 +43,8 @@ generatePCA(proc, pcx = 1, pcy = 2, switchDirX = FALSE,
 \item{plotWidth}{plot width in cm.}
 
 \item{plotRatio}{ratio of height and width of the plotting area.}
+
+\item{marginRatio}{how much white space is shown between data and plot borders, relative to y-axis data range. Margin is added after forcing the specified plot ratio.}
 
 \item{pointSize}{point size.}
 
