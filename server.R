@@ -996,7 +996,7 @@ shinyServer(function(input, output, session) {
   
 	#update calculated default delimiter and number of annotation rows and columns:
 	observe({
-	  d = values$data
+	  d = readData()
 	  if(!is.null(d)){
       if(is.null(d$sep)) d$sep = ","
 	    updateNumericInput(session, "uploadNbrColAnnos", value = nAnno(d$annoCol))
