@@ -1134,28 +1134,11 @@ shinyServer(function(input, output, session) {
 	  annotationsFilters(data$annoRow, saved, type = "Row", data$annoGroupsRow)
 	})
 	
-	output$legendPCA = renderUI({
+	output$captionPCA = renderUI({
 	  data = getProc()
+	  info = getPCA()$captionInfo
     if(!is.null(data$matPca)){
-      leg = c()
-      if(data$inputSaved$procTransformation != "no transformation"){
-        leg = append(leg, c("Original values are ", data$inputSaved$procTransformation, "-transformed. "))
-      }
-      if(data$inputSaved$procMethodAgg != "no collapse"){
-        leg = append(leg, c("Columns with similar annotations are collapsed by taking ", 
-                            data$inputSaved$procMethodAgg, " inside each group. "))
-      }
-      sc = names(procScalings)[match(data$inputSaved$procScaling, procScalings)]
-      meth = names(procMeth)[match(data$inputSaved$procMethod, procMeth)]
-      pcs = c(as.numeric(data$inputSaved$pcaPcx), as.numeric(data$inputSaved$pcaPcy))
-      leg = append(leg, c(capitalize(sc), " is applied to rows; ", meth, " is used to calculate principal components. X and Y axis show principal component ", data$inputSaved$pcaPcx, 
-                          " and principal component ", data$inputSaved$pcaPcy, " that explain ", round(data$varTable[1, pcs[1]] * 100, 1), "% and ", round(data$varTable[1, pcs[2]] * 100, 1), "% of the total variance, respectively. "))
-      if(getPCA()$showEllipses){
-        leg = append(leg, c("Prediction ellipses are such that with probability ", 
-                            data$inputSaved$pcaEllipseConf, 
-                            ", a new observation from the same group will fall inside the ellipse. "))
-      }
-      leg = append(leg, c("N = ", nrow(data$matPca), " data points."))
+      leg = createCaption(type = "pca", info = info)
       #http://stackoverflow.com/questions/23233497/outputting-multiple-lines-of-text-with-rendertext-in-r-shiny
       return(HTML("<h5>Caption example</h5><p>", str_c(leg, collapse = ""), "</p>"))
     } else {
@@ -1163,45 +1146,11 @@ shinyServer(function(input, output, session) {
     }
 	})
   
-	output$legendHeatmap = renderUI({
+	output$captionHeatmap = renderUI({
 	  data = getProc()
-    if(!is.null(data$matImputed) && all(dim(data$matImputed) <= maxDimensionHeatmap)){
-      leg = c()
-      if(data$inputSaved$procTransformation != "no transformation"){
-        leg = append(leg, c("Original values are ", data$inputSaved$procTransformation, "-transformed. "))
-      }
-      if(data$inputSaved$procMethodAgg != "no collapse"){
-        leg = append(leg, c(changeIfTransposed("Columns", data$inputSaved), " with similar annotations are collapsed by taking ", data$inputSaved$procMethodAgg, " inside each group. "))
-      }
-      sc = names(procScalings)[match(data$inputSaved$procScaling, procScalings)]
-      scaling = str_c(sc, " is applied to ", changeIfTransposed("rows", data$inputSaved), ". ")
-      if(toBoolean(data$inputSaved$procCentering)){
-        leg = append(leg, c(changeIfTransposed("Rows", data$inputSaved), " are centered; ", scaling))
-      } else {
-        leg = append(leg, capitalize(scaling))
-      }
-      meth = names(procMeth)[match(data$inputSaved$procMethod, procMeth)]
-      if(meth == "SVD with imputation") meth = "Imputation"
-      if(sum(is.na(data$mat)) > 0){
-        leg = append(leg, c(meth, " is used for missing value estimation. "))
-      }
-      distLabelRows = names(clustDists)[match(data$inputSaved$hmClustDistRows, clustDists)]
-      distLabelCols = names(clustDists)[match(data$inputSaved$hmClustDistCols, clustDists)]
-      linkLabelRows = names(clustMethods)[match(data$inputSaved$hmClustMethodRows, clustMethods)]
-      linkLabelCols = names(clustMethods)[match(data$inputSaved$hmClustMethodCols, clustMethods)]
-      if(distLabelRows == distLabelCols & linkLabelRows == linkLabelCols & distLabelRows != noClust){
-        leg = append(leg, c("Both rows and columns are clustered using ", distLabelRows, " distance and ", linkLabelRows, " linkage. "))
-      } else {
-        if(distLabelRows != noClust){
-          leg = append(leg, c("Rows are clustered using ", distLabelRows, " distance and ", linkLabelRows, " linkage. "))
-        }
-        if(distLabelCols != noClust){
-          leg = append(leg, c("Columns are clustered using ", distLabelCols, " distance and ", linkLabelCols, " linkage. "))
-        }
-      }
-      n = dim(data$matImputed)
-      if(toBoolean(data$inputSaved$hmTransposeHeatmap)) n = rev(n)
-      leg = append(leg, str_c(str_c(n, c(" rows", " columns.")), collapse = ", "))
+	  info = getHeatmap()$captionInfo
+    if(!is.null(info) && !is.null(data$matImputed) && all(dim(data$matImputed) <= maxDimensionHeatmap)){
+      leg = createCaption(type = "hm", info = info)
       return(HTML("<h5>Caption example</h5><p>", str_c(leg, collapse = ""), "</p>"))
     } else {
       return(NULL)

@@ -38,10 +38,10 @@ fakeAnno = " " #placeholder annotation (if annotations are missing)
 noClust = "no clustering"
 changeAll = "change all levels" #label for row/column filtering menu
 clustDists = c(noClust, "correlation", "euclidean", "maximum", "manhattan", "canberra", "binary", "minkowski")
-names(clustDists) = c(noClust, "correlation", "Euclidean", "maximum", "Manhattan", "Canberra", "binary", "Minkowski")
+names(clustDists) = convertIdsToNames(clustDists)
 clustDists = clustDists[clustDists != "minkowski"] #it is already covered by special cases
 clustMethods = c("single", "complete", "average", "mcquitty", "median", "centroid", "ward.D2", "ward.D")
-names(clustMethods) = c("single", "complete", "average", "McQuitty", "median", "centroid", "Ward", "Ward (unsquared distances)")
+names(clustMethods) = convertIdsToNames(clustMethods)
 treeOrderings = c("tightest cluster first", 
   "higher median value first", "higher mean value first", 
   "lower median value first", "lower mean value first",
@@ -54,10 +54,10 @@ schemeListHM = c(colSequential, colDiverging)
 names(schemeListHM) = str_c(c(rep("Sequential", length(colSequential)), rep("Diverging", length(colDiverging))), ": ", schemeListHM)
 schemeListPCA = c(colQualitative, "Grayscale")
 procMeth = c("svdImpute", "nipals", "bpca", "ppca")
-names(procMeth) = c("SVD with imputation", "Nipals PCA", "Bayesian PCA", "Probabilistic PCA")
+names(procMeth) = convertIdsToNames(procMeth)
 procMeth = procMeth[procMeth != "bpca"] #gives too many errors
 procScalings = c("none", "uv", "pareto", "vector")
-names(procScalings) = c("no scaling", "unit variance scaling", "Pareto scaling", "vector scaling")
+names(procScalings) = convertIdsToNames(procScalings)
 procMethAgg = c("no collapse", "median", "mean")
 lineTypeList = c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash")
 tooltipPlace = "right"
@@ -96,7 +96,7 @@ maxAnnoLevels = 30 #for heatmap
 #override parameters if running different edition of ClustVis
 find = c("UA-63396304-1", "UA-63396304-2", "UA-63396304-3")
 replace = c("original", "test", "large data")
-clustvisEdition = mapvalues(Sys.getenv("SHINY_GAID"), find, replace , warn_missing = FALSE)
+clustvisEdition = mapvalues(Sys.getenv("SHINY_GAID"), find, replace, warn_missing = FALSE)
 if(!(clustvisEdition %in% replace)) clustvisEdition = "custom"
 if(clustvisEdition != "original"){
   maxDimensionHeatmap = 2400
@@ -323,22 +323,6 @@ convert2safe = function(id){
 
 writeOutput = function(d, file){
   write.csv(d, file)
-}
-
-changeRowsCols = function(s, change){
-  rows = c("rows", "Rows", "row", "Row")
-  cols = c("columns", "Columns", "column", "Column")
-  from = c(rows, cols)
-  to = c(cols, rows)
-  if(change){
-    s = mapvalues(s, from, to, warn_missing = FALSE)
-  }
-  s
-}
-
-changeIfTransposed = function(s, input){
-  transp = toBoolean(input$hmTransposeHeatmap)
-  changeRowsCols(s, transp)
 }
 
 #indices where the string has the specified prefix

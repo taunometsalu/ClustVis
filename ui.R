@@ -536,7 +536,7 @@ fluidPage(
 					  downloadButton("exportDownloadEpsPCA", "Download EPS-file"),
 					  downloadButton("exportDownloadSvgPCA", "Download SVG-file"),
 					  br(), br(),
-					  htmlOutput("legendPCA"),
+					  htmlOutput("captionPCA"),
 					  pcaPlot
 				  ),
           
@@ -555,7 +555,7 @@ fluidPage(
 					  downloadButton("exportDownloadEpsHeatmap", "Download EPS-file"),
 					  downloadButton("exportDownloadSvgHeatmap", "Download SVG-file"),
 					  br(), br(),
-					  htmlOutput("legendHeatmap"),
+					  htmlOutput("captionHeatmap"),
             hmPlot
 				  ),
           

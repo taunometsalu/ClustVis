@@ -1,3 +1,93 @@
+convertIdsToNames = function(s){
+  map = c(
+    "euclidean" = "Euclidean",
+    "manhattan" = "Manhattan",
+    "canberra" = "Canberra",
+    "minkowski" = "Minkowski",
+    "mcquitty" = "McQuitty",
+    "ward.D2" = "Ward",
+    "ward.D" = "Ward (unsquared distances)",
+    "svdImpute" = "SVD with imputation",
+    "nipals" = "Nipals PCA",
+    "bpca" = "Bayesian PCA",
+    "ppca" = "Probabilistic PCA",
+    "none" = "no scaling",
+    "uv" = "unit variance scaling",
+    "pareto" = "Pareto scaling",
+    "vector" = "vector scaling"
+  )
+  mapvalues(s, names(map), unname(map), warn_missing = FALSE)
+}
+
+changeRowsCols = function(s, change){
+  rows = c("rows", "Rows", "row", "Row")
+  cols = c("columns", "Columns", "column", "Column")
+  from = c(rows, cols)
+  to = c(cols, rows)
+  if(change){
+    s = mapvalues(s, from, to, warn_missing = FALSE)
+  }
+  s
+}
+
+#create example caption for PCA and heatmap
+createCaption = function(type, info){
+  leg = c()
+  transp = ifelse(type == "hm", info$transpose, FALSE) #no transpose for PCA
+  if(!is.na(info$transformation)){
+    leg = append(leg, c("Original values are ", info$transformation, "-transformed. "))
+  }
+  if(!is.na(info$annoColMethodAgg)){
+    leg = append(leg, c(changeRowsCols("Columns", transp), " with similar annotations are collapsed by taking ", info$annoColMethodAgg, " inside each group. "))
+  }
+  
+  if(type == "pca"){
+    sc = convertIdsToNames(info$rowScaling)
+    meth = convertIdsToNames(info$pcaMethod)
+    leg = append(leg, c(capitalize(sc), " is applied to rows; ", meth, " is used to calculate principal components. X and Y axis show principal component ", info$pcs[1], 
+                        " and principal component ", info$pcs[2], " that explain ", info$variance[1], " and ", info$variance[2], " of the total variance, respectively. "))
+    if(info$showEllipses){
+      leg = append(leg, c("Prediction ellipses are such that with probability ", 
+                          info$ellipseConf, 
+                          ", a new observation from the same group will fall inside the ellipse. "))
+    }
+    leg = append(leg, c("N = ", info$n[2], " data points."))
+  } else if(type == "hm"){
+    sc = convertIdsToNames(info$rowScaling)
+    scaling = str_c(sc, " is applied to ", changeRowsCols("rows", transp), ". ")
+    if(info$rowCentering){
+      leg = append(leg, c(changeRowsCols("Rows", transp), " are centered; ", scaling))
+    } else {
+      leg = append(leg, capitalize(scaling))
+    }
+    meth = convertIdsToNames(info$pcaMethod)
+    if(meth == "SVD with imputation") meth = "Imputation"
+    if(info$anyMissingValue){
+      leg = append(leg, c(meth, " is used for missing value estimation. "))
+    }
+    distLabelRows = convertIdsToNames(info$clustDistRows)
+    distLabelCols = convertIdsToNames(info$clustDistCols)
+    linkLabelRows = convertIdsToNames(info$clustMethodRows)
+    linkLabelCols = convertIdsToNames(info$clustMethodCols)
+    if(distLabelRows == distLabelCols & linkLabelRows == linkLabelCols & !is.na(distLabelRows)){
+      leg = append(leg, c("Both rows and columns are clustered using ", distLabelRows, " distance and ", linkLabelRows, " linkage. "))
+    } else {
+      if(!is.na(distLabelRows)){
+        leg = append(leg, c("Rows are clustered using ", distLabelRows, " distance and ", linkLabelRows, " linkage. "))
+      }
+      if(!is.na(distLabelCols)){
+        leg = append(leg, c("Columns are clustered using ", distLabelCols, " distance and ", linkLabelCols, " linkage. "))
+      }
+    }
+    n = info$n
+    if(transp) n = rev(n)
+    leg = append(leg, str_c(str_c(n, c(" rows", " columns.")), collapse = ", "))
+  } else {
+    stop("Type not supported!")
+  }
+  leg
+}
+
 #read file and extract annotations
 readFile = function(file, sep, nbrRowAnnos, nbrColAnnos, quotes, naString){
   #guess delimiter if needed:
@@ -351,17 +441,26 @@ processData = function(data, transformation = NA, annoColKeep = NULL, annoColMet
     colnames(varTable) = paste0("PC", 1:ncol(varTable))
     annoCol = recalcFactorLevels(annoCol)
     annoRow = recalcFactorLevels(annoRow)
-    l = list(annoCol = annoCol, annoRow = annoRow, 
-             mat = mat, matPca = matPca, matScaled = matScaled, matImputed = matImputed, 
+    captionInfo = list(
+      transformation = transformation,
+      annoColMethodAgg = annoColMethodAgg,
+      rowCentering = rowCentering,
+      rowScaling = rowScaling,
+      pcaMethod = pcaMethod,
+      anyMissingValue = (sum(is.na(mat)) > 0),
+      n = dim(matImputed)
+    )
+    l = list(annoCol = annoCol, annoRow = annoRow,
+             mat = mat, matPca = matPca, matScaled = matScaled, matImputed = matImputed,
              varTable = varTable, pcaLoadings = pcaLoadings,
              mappingCol = mappingCol, mappingRow = mappingRow,
-             sizeTable = sizeTable,
-             naTableRows = naTableRows, naTableCols = naTableCols, 
+             sizeTable = sizeTable, captionInfo = captionInfo,
+             naTableRows = naTableRows, naTableCols = naTableCols,
              naRowsRem = naRowsRem, naColsRem = naColsRem,
              constRows = constRows, constCols = constCols)
   } else {
     l = list(sizeTable = sizeTable,
-             naTableRows = naTableRows, naTableCols = naTableCols, 
+             naTableRows = naTableRows, naTableCols = naTableCols,
              naRowsRem = naRowsRem, naColsRem = naColsRem,
              constRows = constRows, constCols = constCols)
   }
@@ -476,6 +575,15 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
   ellCoord = calcEllipses(x2, ellipseConf)
   ellipses = (showEllipses & (length(colorAnno) > 0) & (!is.null(ellCoord)))
   
+  #collect information for the caption
+  captionInfoAdded = list(
+    pcs = pcs,
+    variance = paste0(round(varTable[1, pcs] * 100, 1), "%"),
+    showEllipses = ellipses,
+    ellipseConf = ellipseConf
+  )
+  captionInfo = c(proc$captionInfo, captionInfoAdded)
+  
   dotsPerCm = 96 / 2.54 #how many points per cm
   picw = dotsPerCm * plotWidth #width of whole image in pixels
   margins = c(0, 0, 0, 0)
@@ -515,8 +623,8 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
   xl = paste0(axisLabelPrefix, pcs[1])
   yl = paste0(axisLabelPrefix, pcs[2])
   if(showVariance){
-    xl = paste0(xl, " (", round(varTable[1, pcs[1]] * 100, 1), "%)")
-    yl = paste0(yl, " (", round(varTable[1, pcs[2]] * 100, 1), "%)")
+    xl = paste0(xl, " (", captionInfo$variance[1], ")")
+    yl = paste0(yl, " (", captionInfo$variance[2], ")")
   }
   
   #http://stackoverflow.com/questions/11393123/controlling-ggplot2-legend-display-order
@@ -580,7 +688,7 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
   }
   
   list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, 
-       message = NULL, showEllipses = ellipses)
+       message = NULL, captionInfo = captionInfo)
 }
 
 #' Save ClustVis PCA plot.
@@ -631,9 +739,15 @@ transposeMatrix = function(proc, showImputed, transpose){
     mappingRow = temp
   }
   
+  captionInfoAdded = list(
+    transpose = transpose
+  )
+  captionInfo = c(proc$captionInfo, captionInfoAdded)
+  
   list(matFinal = matFinal, matImputed = matImputed,
        annoCol = annoCol, annoRow = annoRow,
-       mappingCol = mappingCol, mappingRow = mappingRow)
+       mappingCol = mappingCol, mappingRow = mappingRow,
+       captionInfo = captionInfo)
 }
 
 calcClustering = function(mat, distance, linkage){
@@ -683,6 +797,10 @@ calcOrdering = function(mat, distance, linkage, ordering){
 }
 
 clusterMatrix = function(trans, clustDistRows, clustMethodRows, treeOrderingRows, clustDistCols, clustMethodCols, treeOrderingCols){
+  trans$captionInfo$clustDistRows = clustDistRows
+  trans$captionInfo$clustMethodRows = clustMethodRows
+  trans$captionInfo$clustDistCols = clustDistCols
+  trans$captionInfo$clustMethodCols = clustMethodCols
   if(!is.na(clustDistRows)){
     trans$hcRows = calcOrdering(trans$matImputed, clustDistRows, clustMethodRows, treeOrderingRows)
   } else {
@@ -755,6 +873,7 @@ createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, 
   annoRow = clust$annoRow
   hcRows = clust$hcRows
   hcCols = clust$hcCols
+  captionInfo = clust$captionInfo
   
   #filter row annotations:
   if(!is.null(annoRow) && (length(colorAnnoRow) == 1) && all(is.na(colorAnnoRow))){
@@ -846,7 +965,7 @@ createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, 
   )
   graphics.off()
   
-  list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, message = message)
+  list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, message = message, captionInfo = captionInfo)
 }
 
 #' Generate ClustVis heatmap.
