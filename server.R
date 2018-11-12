@@ -1140,7 +1140,7 @@ shinyServer(function(input, output, session) {
     if(!is.null(data$matPca)){
       leg = createCaption(type = "pca", info = info)
       #http://stackoverflow.com/questions/23233497/outputting-multiple-lines-of-text-with-rendertext-in-r-shiny
-      return(HTML("<h5>Caption example</h5><p>", str_c(leg, collapse = ""), "</p>"))
+      return(HTML("<h5>Caption example</h5><p>", leg, "</p>"))
     } else {
       return(NULL)
     }
@@ -1151,7 +1151,7 @@ shinyServer(function(input, output, session) {
 	  info = getHeatmap()$captionInfo
     if(!is.null(info) && !is.null(data$matImputed) && all(dim(data$matImputed) <= maxDimensionHeatmap)){
       leg = createCaption(type = "hm", info = info)
-      return(HTML("<h5>Caption example</h5><p>", str_c(leg, collapse = ""), "</p>"))
+      return(HTML("<h5>Caption example</h5><p>", leg, "</p>"))
     } else {
       return(NULL)
     }

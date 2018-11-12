@@ -83,9 +83,9 @@ createCaption = function(type, info){
     if(transp) n = rev(n)
     leg = append(leg, str_c(str_c(n, c(" rows", " columns.")), collapse = ", "))
   } else {
-    stop("Type not supported!")
+    stop("caption type is not supported!")
   }
-  leg
+  stringr::str_c(leg, collapse = "")
 }
 
 #read file and extract annotations
@@ -205,7 +205,6 @@ filterData = function(data, filteringRows, filteringCols, transpose){
       data$annoRow = NULL
     }
   }
-  
   if(transpose){
     data$mat = t(data$mat)
     
@@ -214,8 +213,7 @@ filterData = function(data, filteringRows, filteringCols, transpose){
     data['annoCol'] = list(data$annoRow)
     data['annoRow'] = list(temp)
   }
-  
-  data
+  structure(data, class = "imp")
 }
 
 #' Import data into ClustVis.
@@ -235,7 +233,8 @@ filterData = function(data, filteringRows, filteringCols, transpose){
 #' @export
 importData = function(file, sep = NA, nbrRowAnnos = NA, nbrColAnnos = NA, quotes = "\"'", naString = "NA", filteringRows = NULL, filteringCols = NULL, transpose = FALSE){
   data = readFile(file = file, sep = sep, nbrRowAnnos = nbrRowAnnos, nbrColAnnos = nbrColAnnos, quotes = quotes, naString = naString)
-  filterData(data, filteringRows = filteringRows, filteringCols = filteringCols, transpose = transpose)
+  filt = filterData(data, filteringRows = filteringRows, filteringCols = filteringCols, transpose = transpose)
+  filt
 }
 
 #number of rows and columns of the matrix
@@ -340,6 +339,9 @@ recalcFactorLevels = function(anno){
 #' @return a structure to be used as input for the functions \code{generatePCA} and \code{generateHeatmap}.
 #' @export
 processData = function(data, transformation = NA, annoColKeep = NULL, annoColMethodAgg = NA, maxNaRows = 0.9999, maxNaCols = 0.9999, remConstCols = FALSE, rowCentering = TRUE, rowScaling = "uv", pcaMethod = "svdImpute", maxComponents = 100){
+  if(!(class(data) %in% c("imp", "NULL"))){
+    stop("class of the data parameter is incorrect!")
+  }
   mat = data$mat
   sizeTable = calcSize(mat)
   if(!is.na(transformation)){
@@ -348,7 +350,7 @@ processData = function(data, transformation = NA, annoColKeep = NULL, annoColMet
     } else if(transformation == "ln(x + 1)"){
       mat = log(pmax(mat + 1, 1))
     } else {
-      stop("This transformation is not supported!")
+      stop("transformation is not supported!")
     }
   }
   annoRow = data$annoRow
@@ -464,7 +466,7 @@ processData = function(data, transformation = NA, annoColKeep = NULL, annoColMet
              naRowsRem = naRowsRem, naColsRem = naColsRem,
              constRows = constRows, constCols = constCols)
   }
-  l
+  structure(l, class = "proc")
 }
 
 #calculate ellipse coordinates
@@ -515,6 +517,9 @@ calcEllipses = function(x2, conf){
 #' @import ggplot2
 #' @export
 generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = FALSE, colorAnno = 1, colorScheme = "Set1", showEllipses = TRUE, ellipseConf = 0.95, ellipseLineWidth = 1, ellipseLineType = "solid", shapeAnno = 2, shapeScheme = "various", plotWidth = 20, plotRatio = 0.8, marginRatio = 0.05, pointSize = 5, legendPosition = "right", fontSize = 20, axisLabelPrefix = "PC", showVariance = TRUE, showSampleIds = FALSE, maxColorLevels = 8, maxShapeLevels = 62){
+  if(!(class(proc) %in% c("proc", "NULL"))){
+    stop("class of the proc parameter is incorrect!")
+  }
   pcs = c(pcx, pcy)
   switchDirs = c(switchDirX, switchDirY)
   annoCol = proc$annoCol
@@ -542,8 +547,10 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
     colorAnno = shapeAnno = NULL
   }
   #if from previous dataset:
-  if(!is.null(colorAnno) && !(colorAnno %in% colnames(x2))) return(list(NULL, 0, 0, message = NULL))
-  if(!is.null(shapeAnno) && !(shapeAnno %in% colnames(x2))) return(list(NULL, 0, 0, message = NULL))
+  if((!is.null(colorAnno) && !(colorAnno %in% colnames(x2))) || (!is.null(shapeAnno) && !(shapeAnno %in% colnames(x2)))){
+    l = list(NULL, 0, 0, message = NULL)
+    return(structure(l, class = "pca"))
+  }
   grSep = ", "
   if(!is.null(colorAnno)){
     x2$groupingColor = apply(x2[colorAnno], 1, function(x) paste0(x, collapse = grSep))
@@ -568,9 +575,11 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
   nColor = length(unique(x2$groupingColor)) #number of different groups for color
   nShape = length(unique(x2$groupingShape)) #number of different groups for shape
   if(nColor > maxColorLevels){
-    return(list(NULL, 0, 0, message = paste0("You have ", nColor, " different groups for color, only up to ", maxColorLevels, " are allowed. Please change color grouping!")))
+    l = list(NULL, 0, 0, message = paste0("You have ", nColor, " different groups for color, only up to ", maxColorLevels, " are allowed. Please change color grouping!"))
+    return(structure(l, class = "pca"))
   } else if(nShape > maxShapeLevels){
-    return(list(NULL, 0, 0, message = paste0("You have ", nShape, " different groups for shape, only up to ", maxShapeLevels, " are allowed. Please change shape grouping!")))
+    l = ist(NULL, 0, 0, message = paste0("You have ", nShape, " different groups for shape, only up to ", maxShapeLevels, " are allowed. Please change shape grouping!"))
+    return(structure(l, class = "pca"))
   }
   ellCoord = calcEllipses(x2, ellipseConf)
   ellipses = (showEllipses & (length(colorAnno) > 0) & (!is.null(ellCoord)))
@@ -687,8 +696,9 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
     q = q + geom_path(aes(x = pcx, y = pcy, colour = groupingColor), data = ellCoord, size = ellipseLineWidth, linetype = ellipseLineType, show.legend = FALSE, inherit.aes = FALSE)
   }
   
-  list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, 
-       message = NULL, captionInfo = captionInfo)
+  l = list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn,
+           message = NULL, captionInfo = captionInfo)
+  structure(l, class = "pca")
 }
 
 #' Save ClustVis PCA plot.
@@ -699,6 +709,9 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
 #' @param file relative or absolute path of the output file, or \code{NA} (default) for current output device.
 #' @export
 savePCA = function(pca, file = NA){
+  if(class(pca) != "pca"){
+    stop("class of the pca parameter is incorrect!")
+  }
   if(!is.null(pca$message)){
     warning(pca$message)
   }
@@ -1007,9 +1020,13 @@ createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, 
 #' @return a structure to be used as input for the function \code{saveHeatmap}.
 #' @export
 generateHeatmap = function(proc, showImputed = TRUE, transpose = FALSE, clustDistRows = "correlation", clustMethodRows = "average", treeOrderingRows = NA, nbrClustersRows = 1, clustDistCols = "correlation", clustMethodCols = "average", treeOrderingCols = NA, nbrClustersCols = 1, colorAnnoRow = NA, colorAnnoCol = NA, legendColorScheme = "Set1", plotWidth = 25, plotRatio = 0.8, colorRangeMin = NA, colorRangeMax = NA, matrixColorScheme = "RdBu", revScheme = TRUE, cellBorder = "grey60", fontSizeGeneral = 10, showNumbers = FALSE, fontSizeNumbers = 12, precisionNumbers = 2, showRownames = TRUE, fontSizeRownames = NA, showColnames = TRUE, fontSizeColnames = NA, showAnnoTitlesRow = TRUE, showAnnoTitlesCol = TRUE, maxAnnoLevels = 50){
+  if(!(class(proc) %in% c("proc", "NULL"))){
+    stop("class of the proc parameter is incorrect!")
+  }
   trans = transposeMatrix(proc, showImputed = showImputed, transpose = transpose)
   clust = clusterMatrix(trans, clustDistRows = clustDistRows, clustMethodRows = clustMethodRows, treeOrderingRows = treeOrderingRows, clustDistCols = clustDistCols, clustMethodCols = clustMethodCols, treeOrderingCols = treeOrderingCols)
-  createHeatmap(clust = clust, nbrClustersRows = nbrClustersRows, nbrClustersCols = nbrClustersCols, colorAnnoRow = colorAnnoRow, colorAnnoCol = colorAnnoCol, legendColorScheme = legendColorScheme, plotWidth = plotWidth, plotRatio = plotRatio, colorRangeMin = colorRangeMin, colorRangeMax = colorRangeMax, matrixColorScheme = matrixColorScheme, revScheme = revScheme, cellBorder = cellBorder, fontSizeGeneral = fontSizeGeneral, showNumbers = showNumbers, fontSizeNumbers = fontSizeNumbers, precisionNumbers = precisionNumbers, showRownames = showRownames, fontSizeRownames = fontSizeRownames, showColnames = showColnames, fontSizeColnames = fontSizeColnames, showAnnoTitlesRow = showAnnoTitlesRow, showAnnoTitlesCol = showAnnoTitlesCol, maxAnnoLevels = maxAnnoLevels)
+  l = createHeatmap(clust = clust, nbrClustersRows = nbrClustersRows, nbrClustersCols = nbrClustersCols, colorAnnoRow = colorAnnoRow, colorAnnoCol = colorAnnoCol, legendColorScheme = legendColorScheme, plotWidth = plotWidth, plotRatio = plotRatio, colorRangeMin = colorRangeMin, colorRangeMax = colorRangeMax, matrixColorScheme = matrixColorScheme, revScheme = revScheme, cellBorder = cellBorder, fontSizeGeneral = fontSizeGeneral, showNumbers = showNumbers, fontSizeNumbers = fontSizeNumbers, precisionNumbers = precisionNumbers, showRownames = showRownames, fontSizeRownames = fontSizeRownames, showColnames = showColnames, fontSizeColnames = fontSizeColnames, showAnnoTitlesRow = showAnnoTitlesRow, showAnnoTitlesCol = showAnnoTitlesCol, maxAnnoLevels = maxAnnoLevels)
+  structure(l, class = "hm")
 }
 
 #' Save ClustVis heatmap plot.
@@ -1020,6 +1037,9 @@ generateHeatmap = function(proc, showImputed = TRUE, transpose = FALSE, clustDis
 #' @param file relative or absolute path of the output file, or \code{NA} (default) for current output device.
 #' @export
 saveHeatmap = function(hm, file = NA){
+  if(class(hm) != "hm"){
+    stop("class of the hm parameter is incorrect!")
+  }
   if(!is.null(hm$message)){
     warning(hm$message)
   }
