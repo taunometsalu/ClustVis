@@ -54,7 +54,7 @@ createCaption = function(type, info){
     leg = append(leg, c("N = ", info$n[2], " data points."))
   } else if(type == "hm"){
     sc = convertIdsToNames(info$rowScaling)
-    scaling = str_c(sc, " is applied to ", changeRowsCols("rows", transp), ". ")
+    scaling = paste0(sc, " is applied to ", changeRowsCols("rows", transp), ". ")
     if(info$rowCentering){
       leg = append(leg, c(changeRowsCols("Rows", transp), " are centered; ", scaling))
     } else {
@@ -81,11 +81,11 @@ createCaption = function(type, info){
     }
     n = info$n
     if(transp) n = rev(n)
-    leg = append(leg, str_c(str_c(n, c(" rows", " columns.")), collapse = ", "))
+    leg = append(leg, paste(paste(n, c("rows", "columns.")), collapse = ", "))
   } else {
     stop("caption type is not supported!")
   }
-  stringr::str_c(leg, collapse = "")
+  paste(leg, collapse = "")
 }
 
 #read file and extract annotations
@@ -578,7 +578,7 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
     l = list(NULL, 0, 0, message = paste0("You have ", nColor, " different groups for color, only up to ", maxColorLevels, " are allowed. Please change color grouping!"))
     return(structure(l, class = "pca"))
   } else if(nShape > maxShapeLevels){
-    l = ist(NULL, 0, 0, message = paste0("You have ", nShape, " different groups for shape, only up to ", maxShapeLevels, " are allowed. Please change shape grouping!"))
+    l = list(NULL, 0, 0, message = paste0("You have ", nShape, " different groups for shape, only up to ", maxShapeLevels, " are allowed. Please change shape grouping!"))
     return(structure(l, class = "pca"))
   }
   ellCoord = calcEllipses(x2, ellipseConf)

@@ -24,8 +24,8 @@ This vignette shows some minimal examples how to generate plots using R package 
 ```{r, fig.show = 'hold', fig.height = 4, fig.width = 7}
 library(clustvis)
 file = "https://raw.githubusercontent.com/taunometsalu/ClustVis/master/datasets/nki.csv"
-d = importData(file)
-proc = processData(d)
+imp = importData(file)
+proc = processData(imp)
 pca = generatePCA(proc)
 savePCA(pca, file = NA)
 ```
@@ -35,8 +35,8 @@ savePCA(pca, file = NA)
 ```{r}
 library(clustvis)
 file = "https://raw.githubusercontent.com/taunometsalu/ClustVis/master/datasets/nki.csv"
-d = importData(file)
-proc = processData(d)
+imp = importData(file)
+proc = processData(imp)
 hm = generateHeatmap(proc)
 saveHeatmap(hm, file = NA)
 ```
