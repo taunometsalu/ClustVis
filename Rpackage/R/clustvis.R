@@ -16,7 +16,7 @@ convertIdsToNames = function(s){
     "pareto" = "Pareto scaling",
     "vector" = "vector scaling"
   )
-  mapvalues(s, names(map), unname(map), warn_missing = FALSE)
+  plyr::mapvalues(s, names(map), unname(map), warn_missing = FALSE)
 }
 
 changeRowsCols = function(s, change){
@@ -25,7 +25,7 @@ changeRowsCols = function(s, change){
   from = c(rows, cols)
   to = c(cols, rows)
   if(change){
-    s = mapvalues(s, from, to, warn_missing = FALSE)
+    s = plyr::mapvalues(s, from, to, warn_missing = FALSE)
   }
   s
 }
@@ -44,7 +44,7 @@ createCaption = function(type, info){
   if(type == "pca"){
     sc = convertIdsToNames(info$rowScaling)
     meth = convertIdsToNames(info$pcaMethod)
-    leg = append(leg, c(capitalize(sc), " is applied to rows; ", meth, " is used to calculate principal components. X and Y axis show principal component ", info$pcs[1], 
+    leg = append(leg, c(Hmisc::capitalize(sc), " is applied to rows; ", meth, " is used to calculate principal components. X and Y axis show principal component ", info$pcs[1], 
                         " and principal component ", info$pcs[2], " that explain ", info$variance[1], " and ", info$variance[2], " of the total variance, respectively. "))
     if(info$showEllipses){
       leg = append(leg, c("Prediction ellipses are such that with probability ", 
@@ -58,7 +58,7 @@ createCaption = function(type, info){
     if(info$rowCentering){
       leg = append(leg, c(changeRowsCols("Rows", transp), " are centered; ", scaling))
     } else {
-      leg = append(leg, capitalize(scaling))
+      leg = append(leg, Hmisc::capitalize(scaling))
     }
     meth = convertIdsToNames(info$pcaMethod)
     if(meth == "SVD with imputation") meth = "Imputation"
@@ -696,8 +696,17 @@ generatePCA = function(proc, pcx = 1, pcy = 2, switchDirX = FALSE, switchDirY = 
     q = q + geom_path(aes(x = pcx, y = pcy, colour = groupingColor), data = ellCoord, size = ellipseLineWidth, linetype = ellipseLineType, show.legend = FALSE, inherit.aes = FALSE)
   }
   
+  caption = createCaption(type = "pca", info = captionInfo)
+  points = data.frame(
+    pcx = x2$pcx,
+    pcy = x2$pcy,
+    color = x2$groupingColor,
+    shape = x2$groupingShape,
+    label = x2$sample,
+    stringsAsFactors = FALSE
+  )
   l = list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn,
-           message = NULL, captionInfo = captionInfo)
+           message = NULL, caption = caption, points = points)
   structure(l, class = "pca")
 }
 
@@ -978,7 +987,9 @@ createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, 
   )
   graphics.off()
   
-  list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, message = message, captionInfo = captionInfo)
+  caption = createCaption(type = "hm", info = captionInfo)
+  cells = matFinal[q$tree_row$order, q$tree_col$order, drop = FALSE]
+  list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, message = message, caption = caption, cells = cells)
 }
 
 #' Generate ClustVis heatmap.
@@ -1050,5 +1061,52 @@ saveHeatmap = function(hm, file = NA){
     grid::grid.draw(hm$q$gtable)
     dev.off()
   }
+}
+
+#' Export data from ClustVis.
+#' 
+#' This function allows to export textual data, similar to but not limited to the options on the 'Export' tab of the online ClustVis.
+#' 
+#' @param x structure returned by the function \code{importData}, \code{processData}, \code{generatePCA} or \code{generateHeatmap}.
+#' @return a structure depending on the class of the input object
+#' @export
+exportData = function(x){
+  cl = class(x)
+  if(!(cl %in% c("imp", "proc", "pca", "hm"))){
+    stop("class of the x parameter is incorrect!")
+  }
+  l = list()
+  if(cl == "imp"){
+    l$initialMessage = x$message
+    l$initialMatrix = x$mat
+    l$initialAnnoRow = x$annoRow
+    l$initialAnnoCol = x$annoCol
+  }
+  if(cl == "proc"){
+    l$processedMatrix = x$matImputed
+    l$processedAnnoRow = x$annoRow
+    l$processedAnnoCol = x$annoCol
+    l$processedSize = x$sizeTable
+    l$processedNaRows = x$naTableRows
+    l$processedNaCols = x$naTableCols
+    l$processedNaRowsRem = x$naRowsRem
+    l$processedNaColsRem = x$naColsRem
+    l$processedConstRows = x$constRows
+    l$processedConstCols = x$constCols
+    l$pcaScores = x$matPca
+    l$pcaLoadings = x$pcaLoadings
+    l$pcaVariance = x$varTable
+  }
+  if(cl == "pca"){
+    l$pcaMessage = x$message
+    l$pcaCaption = x$caption
+    l$pcaMatrix = x$points
+  }
+  if(cl == "hm"){
+    l$hmMessage = x$message
+    l$hmCaption = x$caption
+    l$hmMatrix = x$cells
+  }
+  l
 }
 

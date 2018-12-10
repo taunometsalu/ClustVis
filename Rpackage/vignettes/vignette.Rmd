@@ -46,3 +46,20 @@ saveHeatmap(hm, file = NA)
 saveHeatmap(hm, file = NA)
 ```
 
+## Export example
+
+```{r}
+library(clustvis)
+file = "https://raw.githubusercontent.com/taunometsalu/ClustVis/master/datasets/nki.csv"
+imp = importData(file)
+proc = processData(imp)
+pca = generatePCA(proc)
+hm = generateHeatmap(proc)
+exp = c(
+  exportData(imp),
+  exportData(proc),
+  exportData(pca),
+  exportData(hm)
+)
+print(str(exp))
+```
