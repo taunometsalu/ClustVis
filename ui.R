@@ -683,6 +683,8 @@ fluidPage(
 				),
 				tabPanel("News",
 					h5("Version history:"),
+					p("20th December 2018 - fixed a bug when clustering is not applied on heatmap (thank you, Niladri Bhusan Pati, for letting us know about it!)."),
+					p("17th December 2018 - added some text to help page."),
 					p("10th December 2018 - added option to export data using ClustVis R package."),
 					p("29th October 2018 - fixed a bug with transposing input matrix."),
 					p("15th October 2018 - added option to change margin ratio for PCA plot."),

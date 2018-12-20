@@ -69,7 +69,7 @@ createCaption = function(type, info){
     distLabelCols = convertIdsToNames(info$clustDistCols)
     linkLabelRows = convertIdsToNames(info$clustMethodRows)
     linkLabelCols = convertIdsToNames(info$clustMethodCols)
-    if(distLabelRows == distLabelCols & linkLabelRows == linkLabelCols & !is.na(distLabelRows)){
+    if(!is.na(distLabelRows) && !is.na(distLabelCols) && distLabelRows == distLabelCols && linkLabelRows == linkLabelCols){
       leg = append(leg, c("Both rows and columns are clustered using ", distLabelRows, " distance and ", linkLabelRows, " linkage. "))
     } else {
       if(!is.na(distLabelRows)){
@@ -988,7 +988,17 @@ createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, 
   graphics.off()
   
   caption = createCaption(type = "hm", info = captionInfo)
-  cells = matFinal[q$tree_row$order, q$tree_col$order, drop = FALSE]
+  if(class(hcRows) != "hclust"){
+    wr = 1:nrow(matFinal)
+  } else {
+    wr = q$tree_row$order
+  }
+  if(class(hcCols) != "hclust"){
+    wc = 1:ncol(matFinal)
+  } else {
+    wc = q$tree_col$order
+  }
+  cells = matFinal[wr, wc, drop = FALSE]
   list(q = q, pich = pich, picw = picw, pichIn = pichIn, picwIn = picwIn, message = message, caption = caption, cells = cells)
 }
 
