@@ -11,11 +11,12 @@ generateHeatmap(proc, showImputed = TRUE, transpose = FALSE,
   treeOrderingCols = NA, nbrClustersCols = 1, colorAnnoRow = NA,
   colorAnnoCol = NA, legendColorScheme = "Set1", plotWidth = 25,
   plotRatio = 0.8, colorRangeMin = NA, colorRangeMax = NA,
-  matrixColorScheme = "RdBu", revScheme = TRUE, cellBorder = "grey60",
-  fontSizeGeneral = 10, showNumbers = FALSE, fontSizeNumbers = 12,
-  precisionNumbers = 2, showRownames = TRUE, fontSizeRownames = NA,
-  showColnames = TRUE, fontSizeColnames = NA, showAnnoTitlesRow = TRUE,
-  showAnnoTitlesCol = TRUE, maxAnnoLevels = 50)
+  matrixColorScheme = "RdBu", revScheme = TRUE,
+  cellBorder = "grey60", fontSizeGeneral = 10, showNumbers = FALSE,
+  fontSizeNumbers = 12, precisionNumbers = 2, showRownames = TRUE,
+  fontSizeRownames = NA, showColnames = TRUE, fontSizeColnames = NA,
+  showAnnoTitlesRow = TRUE, showAnnoTitlesCol = TRUE,
+  maxAnnoLevels = 50, ...)
 }
 \arguments{
 \item{proc}{structure returned by the \code{processData} function.}

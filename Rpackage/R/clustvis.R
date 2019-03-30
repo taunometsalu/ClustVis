@@ -889,7 +889,7 @@ calcAnnoLegendColors = function(x, legendColorScheme){
   cols
 }
 
-createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, colorAnnoCol, legendColorScheme, plotWidth, plotRatio, colorRangeMin, colorRangeMax, matrixColorScheme, revScheme, cellBorder, fontSizeGeneral, showNumbers, fontSizeNumbers, precisionNumbers, showRownames, fontSizeRownames, showColnames, fontSizeColnames, showAnnoTitlesRow, showAnnoTitlesCol, maxAnnoLevels){
+createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, colorAnnoCol, legendColorScheme, plotWidth, plotRatio, colorRangeMin, colorRangeMax, matrixColorScheme, revScheme, cellBorder, fontSizeGeneral, showNumbers, fontSizeNumbers, precisionNumbers, showRownames, fontSizeRownames, showColnames, fontSizeColnames, showAnnoTitlesRow, showAnnoTitlesCol, maxAnnoLevels, ...){
   matFinal = clust$matFinal
   annoCol = clust$annoCol
   annoRow = clust$annoRow
@@ -983,7 +983,8 @@ createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, 
                          annotation_names_row = showAnnoTitlesRow, annotation_names_col = showAnnoTitlesCol,
                          display_numbers = showNumbers, number_format = paste0("%.", precisionNumbers, "f"),
                          fontsize = fontSizeGeneral, fontsize_number = fontSizeNumbers,
-                         width = picwIn, height = pichIn, silent = TRUE
+                         width = picwIn, height = pichIn, silent = TRUE,
+                         ...
   )
   graphics.off()
   
@@ -1038,15 +1039,16 @@ createHeatmap = function(clust, nbrClustersRows, nbrClustersCols, colorAnnoRow, 
 #' @param showAnnoTitlesRow whether to show row annotation titles.
 #' @param showAnnoTitlesCol whether to show column annotation titles.
 #' @param maxAnnoLevels maximum number of annotation levels.
+#' @param ... further parameters passed to \code{pheatmap} function
 #' @return a structure to be used as input for the function \code{saveHeatmap}.
 #' @export
-generateHeatmap = function(proc, showImputed = TRUE, transpose = FALSE, clustDistRows = "correlation", clustMethodRows = "average", treeOrderingRows = NA, nbrClustersRows = 1, clustDistCols = "correlation", clustMethodCols = "average", treeOrderingCols = NA, nbrClustersCols = 1, colorAnnoRow = NA, colorAnnoCol = NA, legendColorScheme = "Set1", plotWidth = 25, plotRatio = 0.8, colorRangeMin = NA, colorRangeMax = NA, matrixColorScheme = "RdBu", revScheme = TRUE, cellBorder = "grey60", fontSizeGeneral = 10, showNumbers = FALSE, fontSizeNumbers = 12, precisionNumbers = 2, showRownames = TRUE, fontSizeRownames = NA, showColnames = TRUE, fontSizeColnames = NA, showAnnoTitlesRow = TRUE, showAnnoTitlesCol = TRUE, maxAnnoLevels = 50){
+generateHeatmap = function(proc, showImputed = TRUE, transpose = FALSE, clustDistRows = "correlation", clustMethodRows = "average", treeOrderingRows = NA, nbrClustersRows = 1, clustDistCols = "correlation", clustMethodCols = "average", treeOrderingCols = NA, nbrClustersCols = 1, colorAnnoRow = NA, colorAnnoCol = NA, legendColorScheme = "Set1", plotWidth = 25, plotRatio = 0.8, colorRangeMin = NA, colorRangeMax = NA, matrixColorScheme = "RdBu", revScheme = TRUE, cellBorder = "grey60", fontSizeGeneral = 10, showNumbers = FALSE, fontSizeNumbers = 12, precisionNumbers = 2, showRownames = TRUE, fontSizeRownames = NA, showColnames = TRUE, fontSizeColnames = NA, showAnnoTitlesRow = TRUE, showAnnoTitlesCol = TRUE, maxAnnoLevels = 50, ...){
   if(!(class(proc) %in% c("proc", "NULL"))){
     stop("class of the proc parameter is incorrect!")
   }
   trans = transposeMatrix(proc, showImputed = showImputed, transpose = transpose)
   clust = clusterMatrix(trans, clustDistRows = clustDistRows, clustMethodRows = clustMethodRows, treeOrderingRows = treeOrderingRows, clustDistCols = clustDistCols, clustMethodCols = clustMethodCols, treeOrderingCols = treeOrderingCols)
-  l = createHeatmap(clust = clust, nbrClustersRows = nbrClustersRows, nbrClustersCols = nbrClustersCols, colorAnnoRow = colorAnnoRow, colorAnnoCol = colorAnnoCol, legendColorScheme = legendColorScheme, plotWidth = plotWidth, plotRatio = plotRatio, colorRangeMin = colorRangeMin, colorRangeMax = colorRangeMax, matrixColorScheme = matrixColorScheme, revScheme = revScheme, cellBorder = cellBorder, fontSizeGeneral = fontSizeGeneral, showNumbers = showNumbers, fontSizeNumbers = fontSizeNumbers, precisionNumbers = precisionNumbers, showRownames = showRownames, fontSizeRownames = fontSizeRownames, showColnames = showColnames, fontSizeColnames = fontSizeColnames, showAnnoTitlesRow = showAnnoTitlesRow, showAnnoTitlesCol = showAnnoTitlesCol, maxAnnoLevels = maxAnnoLevels)
+  l = createHeatmap(clust = clust, nbrClustersRows = nbrClustersRows, nbrClustersCols = nbrClustersCols, colorAnnoRow = colorAnnoRow, colorAnnoCol = colorAnnoCol, legendColorScheme = legendColorScheme, plotWidth = plotWidth, plotRatio = plotRatio, colorRangeMin = colorRangeMin, colorRangeMax = colorRangeMax, matrixColorScheme = matrixColorScheme, revScheme = revScheme, cellBorder = cellBorder, fontSizeGeneral = fontSizeGeneral, showNumbers = showNumbers, fontSizeNumbers = fontSizeNumbers, precisionNumbers = precisionNumbers, showRownames = showRownames, fontSizeRownames = fontSizeRownames, showColnames = showColnames, fontSizeColnames = fontSizeColnames, showAnnoTitlesRow = showAnnoTitlesRow, showAnnoTitlesCol = showAnnoTitlesCol, maxAnnoLevels = maxAnnoLevels, ...)
   structure(l, class = "hm")
 }
 
