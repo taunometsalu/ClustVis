@@ -29,8 +29,8 @@ ClustVis should then be running on ```<myURL>:<myPort>```.
 To start using ClustVis R package, you can look at the examples in the vignette that comes with the package:
 
 ```
-source("http://bioconductor.org/biocLite.R")
-biocLite("pcaMethods")
+install.packages("BiocManager")
+BiocManager::install("pcaMethods")
 library(devtools)
 install_github("taunometsalu/pheatmap")
 install_github("taunometsalu/clustvis/Rpackage", build_vignettes = TRUE)
